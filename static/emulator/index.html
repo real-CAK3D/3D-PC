@@ -73,7 +73,7 @@
       }).join('');
       render();
     }).catch(function () {
-      statusEl.textContent = "Can't reach the ROM library. Is rom-server running on the nukebox, and are you on Tailscale? You can still play a file from this device.";
+      statusEl.textContent = "Can't reach the ROM library. Make sure you're on Tailscale, and if Chrome asked to let this site access devices on your local network, choose Allow (then press Load library). You can still play a file from this device.";
     });
   }
 

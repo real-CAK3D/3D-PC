@@ -53,7 +53,8 @@ export default class TvScreen {
         this.holder.style.cssText = 'position:absolute;inset:0;';
         this.emulator = document.createElement('iframe');
         this.emulator.title = 'CAK3D Station';
-        this.emulator.allow = 'autoplay; gamepad; fullscreen';
+        // the ROM library and Jellyfin live on the tailnet: Chrome asks before a public site reaches them
+        this.emulator.allow = 'autoplay; gamepad; fullscreen; local-network-access';
         this.emulator.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;display:none;';
         this.lowerThird = document.createElement('div');
         this.lowerThird.style.cssText =
@@ -113,7 +114,7 @@ export default class TvScreen {
         if (media.kind === 'iframe') {
             const f = document.createElement('iframe');
             f.src = media.url;
-            f.allow = 'autoplay; fullscreen; encrypted-media';
+            f.allow = 'autoplay; fullscreen; encrypted-media; local-network-access';
             f.style.cssText = 'width:100%;height:100%;border:0;background:#000;';
             this.holder.appendChild(f);
             this.media = f;

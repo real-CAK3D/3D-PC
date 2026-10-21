@@ -9,7 +9,7 @@ import { keys } from '../../Camera/CameraKeyframes';
 export const myPetId: StashItem = {
     name: 'MyPetID',
     description: 'MyPetID: a home for your pet’s ID, info and contacts.',
-    url: 'https://mypetid-home.github.io/',
+    url: 'https://mypetid.vercel.app/',
     repo: 'https://github.com/MyPetID-Home/MyPetID-Home.github.io',
 };
 
