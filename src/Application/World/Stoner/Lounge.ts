@@ -179,7 +179,8 @@ export default class Lounge {
         pizza.rotation.y = 0.2;
         group.add(pizza);
 
-        this.scene.add(shadows(group));
+        // click the table for a look at everything on it
+        this.scene.add(inspectable(shadows(group), new THREE.Vector3(0.15, 1, -0.75)));
         return new THREE.Vector3(TABLE.x, FLOOR_Y + H, TABLE.z);
     }
 

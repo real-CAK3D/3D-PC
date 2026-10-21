@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import Application from '../../Application';
 import { CameraKey } from '../../Camera/Camera';
 import UIEventBus from '../../UI/EventBus';
-import { canvasTexture, CM, FLOOR_Y, mat, RoundedBoxGeometry, shadows, woodTexture } from './props';
+import { canvasTexture, CM, FLOOR_Y, inspectable, mat, RoundedBoxGeometry, shadows, woodTexture } from './props';
 import { papers } from './papers';
 import BezierEasing from 'bezier-easing';
 import TvScreen, { Clip, Media } from './TvScreen';
@@ -54,6 +54,8 @@ export default class Entertainment {
     tv: TvScreen;
     data: TvData = {};
     tvOn = true;
+    laptopCtx: CanvasRenderingContext2D;
+    laptopTex: THREE.CanvasTexture;
     digits = '';
     digitTimer: number | undefined;
 
@@ -76,6 +78,7 @@ export default class Entertainment {
         this.buildReceiver();
         this.buildPs5();
         this.buildRemote();
+        this.buildLaptop();
 
         // the stereo follows the Spotify window on the PC
         window.addEventListener('message', (event) => {
@@ -558,6 +561,94 @@ export default class Entertainment {
         this.scene.add(shadows(g));
     }
 
+    /** Open laptop on the couch cushion: shows what CAK3D FM is playing; click it for the stereo */
+    buildLaptop() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 320;
+        this.laptopCtx = canvas.getContext('2d') as CanvasRenderingContext2D;
+        this.laptopTex = new THREE.CanvasTexture(canvas);
+        this.laptopTex.encoding = THREE.sRGBEncoding;
+
+        const g = new THREE.Group();
+        // left seat cushion of the couch, angled toward the room
+        g.position.set(-9700, FLOOR_Y + 1660, 450);
+        g.rotation.y = 0.35;
+        const alu = mat.std('#b9bcc4', 0.3, 0.85);
+        const base = new THREE.Mesh(new RoundedBoxGeometry(33 * CM, 1.6 * CM, 23 * CM, 2, 0.6 * CM), alu);
+        base.position.y = 0.8 * CM;
+        g.add(base);
+        const keys = new THREE.Mesh(new THREE.PlaneGeometry(29 * CM, 10 * CM), mat.std('#1a1a1e', 0.6));
+        keys.rotation.x = -Math.PI / 2;
+        keys.position.set(0, 1.62 * CM, -2 * CM);
+        const pad = new THREE.Mesh(new THREE.PlaneGeometry(10 * CM, 6 * CM), mat.std('#a9acb4', 0.4, 0.6));
+        pad.rotation.x = -Math.PI / 2;
+        pad.position.set(0, 1.62 * CM, 6.5 * CM);
+        g.add(keys, pad);
+        // lid hinged at the back edge, opened ~110 degrees, screen facing the keyboard side
+        const hinge = new THREE.Group();
+        hinge.position.set(0, 1.6 * CM, -11.5 * CM);
+        hinge.rotation.x = -0.35;
+        const lid = new THREE.Mesh(new RoundedBoxGeometry(33 * CM, 22 * CM, 0.7 * CM, 2, 0.3 * CM), alu);
+        lid.position.y = 11 * CM;
+        const screen = new THREE.Mesh(new THREE.PlaneGeometry(31 * CM, 19.5 * CM), new THREE.MeshBasicMaterial({ map: this.laptopTex, toneMapped: false }));
+        screen.position.set(0, 11 * CM, 0.36 * CM);
+        hinge.add(lid, screen);
+        g.add(hinge);
+        this.scene.add(shadows(g, true, false));
+        inspectable(g, new THREE.Vector3(0.3, 0.45, 1));
+        g.userData.onClick = () => this.openStereo();
+    }
+
+    drawLaptop(t: number) {
+        const ctx = this.laptopCtx;
+        const { width: w, height: h } = ctx.canvas;
+        const bg = ctx.createLinearGradient(0, 0, w, h);
+        bg.addColorStop(0, '#2a0f45');
+        bg.addColorStop(1, '#0b0412');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, w, h);
+        // album art: a spinning record
+        ctx.save();
+        ctx.translate(110, 150);
+        ctx.rotate(this.playing ? t * 0.002 : 0);
+        ctx.fillStyle = '#111';
+        ctx.beginPath();
+        ctx.arc(0, 0, 80, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        for (let r = 30; r < 80; r += 7) {
+            ctx.beginPath();
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        ctx.fillStyle = '#aa5cff';
+        ctx.beginPath();
+        ctx.arc(0, 0, 26, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#5bd16a';
+        ctx.fillRect(-3, -22, 6, 10);
+        ctx.restore();
+        ctx.fillStyle = '#f3e7ff';
+        ctx.font = 'bold 28px Arial, sans-serif';
+        ctx.fillText('CAK3D FM', 220, 90);
+        ctx.font = '18px Arial, sans-serif';
+        ctx.fillStyle = '#c9b4ef';
+        const title = this.playing ? this.nowPlaying || 'Now playing' : 'Paused · click to pick a station';
+        ctx.fillText(title.length > 30 ? title.slice(0, 29) + '…' : title, 220, 122);
+        // progress bar + equalizer
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(220, 140, 260, 6);
+        ctx.fillStyle = '#5bff8a';
+        ctx.fillRect(220, 140, this.playing ? ((t * 0.01) % 260) : 0, 6);
+        for (let i = 0; i < 20; i++) {
+            const level = this.playing ? 0.2 + 0.8 * Math.abs(Math.sin(t * 0.005 * (1 + (i % 4) * 0.4) + i)) : 0.05;
+            ctx.fillStyle = `hsl(${270 + i * 5}, 90%, 60%)`;
+            ctx.fillRect(220 + i * 13, 260 - level * 80, 9, level * 80);
+        }
+        this.laptopTex.needsUpdate = true;
+    }
+
     setPower(on: boolean, channel = this.channel) {
         this.tvOn = on;
         if (on) this.tune(channel);
@@ -697,6 +788,7 @@ export default class Entertainment {
             }
             this.screenTex.needsUpdate = true;
             this.drawReceiver(t);
+            this.drawLaptop(t);
         }
         this.banner = Math.max(0, this.banner - dt);
         this.tv.setLoud(TV_VIEWS.indexOf(this.view as CameraKey) >= 0);

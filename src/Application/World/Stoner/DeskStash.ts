@@ -373,7 +373,8 @@ export default class DeskStash {
         const blockers = this.raycaster.intersectObjects(
             ['desk', 'computer', 'monitor_base', 'keyboard', 'chair_seat']
                 .map((n) => this.scene.getObjectByName(n))
-                .filter((o): o is THREE.Object3D => !!o && o !== target),
+                // hidden props (like the old office chair) don't block anything
+                .filter((o): o is THREE.Object3D => !!o && o !== target && o.visible),
             false
         );
         if (blockers[0] && blockers[0].distance < hit.distance - 5) return null;

@@ -43,7 +43,7 @@ export const sites: StashItem[] = [
     { name: 'real-cak3d.github.io', description: 'Host Site for CAK3D Projects and Applications', url: 'https://real-cak3d.github.io/', repo: gh('real-CAK3D.github.io'), color: '#a35bff' },
     { name: 'CAK3D Creations', url: 'https://cak3d-creations.vercel.app', repo: gh('CAK3D-Creations'), color: '#5bd16a' },
     { name: 'CAK3D Crawler', url: 'https://cak3d-crawler.vercel.app', repo: gh('CAK3D-Crawler'), color: '#ff5bd1' },
-    { name: "Ibby's Automotive", description: "Ibby's Automotive Service", url: 'https://ibbyauto.github.io/', repo: gh('IbbyAuto.github.io'), color: '#ff9b3d' },
+    { name: 'IbbyAutoWorks', description: 'Mobile Auto Service', url: 'https://ibbyautoworks.github.io/', repo: 'https://github.com/IbbyAutoWorks/IbbyAutoWorks.github.io', color: '#ff9b3d' },
     { name: 'Map-Pi', url: 'https://map-pi-zeta.vercel.app', repo: gh('Map-Pi-E'), color: '#3ad1c4' },
     { name: "Zayne's 14th", description: "You're invited! Zayne's turning 14.", url: 'https://zaynes-birthday.vercel.app', repo: gh('ZaynesBirthday'), model: 'card' },
 ];

@@ -21,6 +21,9 @@
   .game img, .game .blank { width: 100%; aspect-ratio: 1; object-fit: contain; background: #000; border-radius: 6px; }
   .game .blank { display: grid; place-items: center; color: var(--dim); font-size: 28px; }
   .game small { color: var(--dim); text-transform: uppercase; }
+  .game.off { opacity: .45; cursor: not-allowed; }
+  .game.off:hover { border-color: var(--line); box-shadow: none; }
+  #filter { min-width: 150px; }
   #player { position: fixed; inset: 0; background: #000; display: none; }
   #player.on { display: block; }
   #back { position: fixed; top: 8px; left: 8px; z-index: 10; display: none; }
@@ -32,6 +35,7 @@
   <b>CAK3D STATION</b>
   <input id="lib" placeholder="ROM library URL (your tailnet)">
   <button id="save">Load library</button>
+  <select id="filter" title="show one system"><option value="">All systems</option></select>
   <select id="core" title="system for local files">
     <option value="nds">Nintendo DS</option><option value="gba">Game Boy Advance</option><option value="gb">Game Boy / Color</option>
     <option value="nes">NES</option><option value="snes">SNES</option><option value="n64">N64</option><option value="psx">PlayStation</option>
@@ -61,30 +65,61 @@
     statusEl.textContent = 'Loading library...';
     grid.innerHTML = '';
     fetch(lib + 'index.json').then(function (r) { if (!r.ok) throw r.status; return r.json(); }).then(function (data) {
-      var games = data.games || [];
-      statusEl.textContent = games.length + ' games in the library';
-      games.forEach(function (g) {
-        var card = document.createElement('div');
-        card.className = 'game';
-        card.innerHTML = (g.cover ? '<img loading="lazy" alt="">' : '<div class="blank">🎮</div>') + '<b></b><small></small>';
-        if (g.cover) card.querySelector('img').src = lib + g.cover;
-        card.querySelector('b').textContent = g.name;
-        card.querySelector('small').textContent = g.system;
-        card.onclick = function () { start(lib + g.file, g.system, g.name); };
-        grid.appendChild(card);
-      });
+      allGames = data.games || [];
+      var systems = {};
+      allGames.forEach(function (g) { systems[g.system] = (systems[g.system] || 0) + 1; });
+      filterEl.innerHTML = '<option value="">All systems (' + allGames.length + ')</option>' + Object.keys(systems).sort().map(function (k) {
+        return '<option value="' + k + '">' + (NAMES[k] || k) + ' (' + systems[k] + ')</option>';
+      }).join('');
+      render();
     }).catch(function () {
       statusEl.textContent = "Can't reach the ROM library. Is rom-server running on the nukebox, and are you on Tailscale? You can still play a file from this device.";
     });
   }
 
+  var NAMES = { nds: 'Nintendo DS', gba: 'Game Boy Advance', gb: 'Game Boy / Color', nes: 'NES', snes: 'SNES', n64: 'Nintendo 64',
+    psx: 'PlayStation', psp: 'PSP', segaMD: 'Genesis', amstrad: 'Amstrad CPC', ps2: 'PlayStation 2', arcade: 'Arcade' };
+  var allGames = [];
+  var filterEl = document.getElementById('filter');
+  filterEl.onchange = render;
+  function render() {
+    var only = filterEl.value;
+    var games = allGames.filter(function (g) { return !only || g.system === only; });
+    var playable = games.filter(function (g) { return g.supported !== false; }).length;
+    statusEl.textContent = playable + ' playable' + (games.length > playable ? ' · ' + (games.length - playable) + " need hardware a browser can't emulate" : '');
+    grid.innerHTML = '';
+    games.forEach(function (g) {
+      var card = document.createElement('div');
+      card.className = 'game' + (g.supported === false ? ' off' : '');
+      card.innerHTML = (g.cover ? '<img loading="lazy" alt="">' : '<div class="blank">🎮</div>') + '<b></b><small></small>';
+      if (g.cover) card.querySelector('img').src = lib + g.cover;
+      card.querySelector('b').textContent = g.name;
+      card.querySelector('small').textContent = (NAMES[g.system] || g.system) + (g.supported === false ? ' · not supported' : '');
+      if (g.supported === false) card.title = (g.note || g.system) + ': no browser emulator can run this one';
+      else card.onclick = function () { start(lib + g.file, g.system, g.name); };
+      grid.appendChild(card);
+    });
+  }
+
+  // the library names systems; a couple of EmulatorJS cores go by another name
+  var CORES = { amstrad: 'cap32' };
   var started = false;
   function start(url, core, name) {
+    // PSP needs threads, which only work in a cross-origin isolated top-level tab
+    if (core === 'psp' && !window.crossOriginIsolated) {
+      var target = location.pathname + '?rom=' + encodeURIComponent(url) + '&core=psp&name=' + encodeURIComponent(name || '');
+      if (window.top !== window) {
+        window.open(target, '_blank');
+        statusEl.textContent = 'PSP games need their own tab, so it opened in a new one.';
+        return;
+      }
+    }
     if (started) { location.href = '?rom=' + encodeURIComponent(url) + '&core=' + core + '&name=' + encodeURIComponent(name || ''); return; }
     started = true;
     document.getElementById('player').classList.add('on');
     window.EJS_player = '#game';
-    window.EJS_core = core;
+    window.EJS_core = CORES[core] || core;
+    if (core === 'psp') window.EJS_threads = true;
     window.EJS_gameUrl = url;
     window.EJS_gameName = name || 'game';
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';

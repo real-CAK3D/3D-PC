@@ -18,6 +18,8 @@ import RoomExtras from './Stoner/RoomExtras';
 import Outdoors from './Stoner/Outdoors';
 import GameMode from './Stoner/GameMode';
 import DeskInputs from './Stoner/DeskInputs';
+import GamingChair from './Stoner/GamingChair';
+import Toolbox from './Stoner/Toolbox';
 import { ROOM } from './Stoner/Room';
 import * as THREE from 'three';
 export default class World {
@@ -43,6 +45,8 @@ export default class World {
     outdoors: Outdoors;
     gameMode: GameMode;
     deskInputs: DeskInputs;
+    gamingChair: GamingChair;
+    toolbox: Toolbox;
 
     constructor() {
         this.application = new Application();
@@ -67,9 +71,11 @@ export default class World {
         this.room = new Room();
         this.lounge = new Lounge();
         this.weedPlant = new WeedPlant();
+        this.gamingChair = new GamingChair();
         this.entertainment = new Entertainment();
         this.gameMode = new GameMode(this.entertainment);
         this.roomExtras = new RoomExtras();
+        this.toolbox = new Toolbox();
         this.outdoors = new Outdoors();
         this.deskStash = new DeskStash();
         this.deskInputs = new DeskInputs();
@@ -92,6 +98,8 @@ export default class World {
         if (this.outdoors) this.outdoors.update();
         if (this.gameMode) this.gameMode.update();
         if (this.deskInputs) this.deskInputs.update();
+        if (this.gamingChair) this.gamingChair.update();
+        if (this.toolbox) this.toolbox.update();
         if (this.smoke) this.smoke.update();
         if (this.monitorScreen) this.monitorScreen.update();
         if (this.environment) this.environment.update();
