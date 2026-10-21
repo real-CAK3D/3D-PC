@@ -44,9 +44,9 @@ export default class Application {
 
         instance = this;
 
-        // Global access
+        // Global access (only with ?debug, for poking at the scene from the console)
         //@ts-ignore
-        // window.Application = this;
+        if (new URLSearchParams(window.location.search).has('debug')) window.Application = this;
 
         // Setup
         this.debug = new Debug();

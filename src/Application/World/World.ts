@@ -8,6 +8,16 @@ import CoffeeSteam from './CoffeeSteam';
 import Cursor from './Cursor';
 import Hitboxes from './Hitboxes';
 import AudioManager from '../Audio/AudioManager';
+import Room from './Stoner/Room';
+import Lounge from './Stoner/Lounge';
+import WeedPlant from './Stoner/WeedPlant';
+import DeskStash from './Stoner/DeskStash';
+import Smoke from './Stoner/Smoke';
+import Entertainment from './Stoner/Entertainment';
+import RoomExtras from './Stoner/RoomExtras';
+import Outdoors from './Stoner/Outdoors';
+import { ROOM } from './Stoner/Room';
+import * as THREE from 'three';
 export default class World {
     application: Application;
     scene: THREE.Scene;
@@ -21,6 +31,14 @@ export default class World {
     coffeeSteam: CoffeeSteam;
     cursor: Cursor;
     audioManager: AudioManager;
+    room: Room;
+    lounge: Lounge;
+    weedPlant: WeedPlant;
+    deskStash: DeskStash;
+    smoke: Smoke;
+    entertainment: Entertainment;
+    roomExtras: RoomExtras;
+    outdoors: Outdoors;
 
     constructor() {
         this.application = new Application();
@@ -35,12 +53,38 @@ export default class World {
             this.monitorScreen = new MonitorScreen();
             this.coffeeSteam = new CoffeeSteam();
             this.audioManager = new AudioManager();
+            this.setStonerScene();
             // const hb = new Hitboxes();
             // this.cursor = new Cursor();
         });
     }
 
+    setStonerScene() {
+        this.room = new Room();
+        this.lounge = new Lounge();
+        this.weedPlant = new WeedPlant();
+        this.entertainment = new Entertainment();
+        this.roomExtras = new RoomExtras();
+        this.outdoors = new Outdoors();
+        this.deskStash = new DeskStash();
+
+        this.smoke = new Smoke();
+        [...this.room.smokePoints, ...this.lounge.smokePoints].forEach((p) => this.smoke.addWisp(p));
+        // haze hanging in the room (kept above and behind the monitor so the screen stays clear)
+        this.smoke.addHaze(new THREE.Vector3(-8500, 3300, 4500), 10000, 4200, 0.24);
+        this.smoke.addHaze(new THREE.Vector3(-1500, 3400, -400), 12000, 3400, 0.2);
+        this.smoke.addHaze(new THREE.Vector3(-5000, ROOM.ceiling - 1400, 3500), 18000, 2600, 0.18);
+        this.smoke.addHaze(new THREE.Vector3(2500, 2600, 5500), 8000, 3600, 0.14);
+    }
+
     update() {
+        if (this.room) this.room.update();
+        if (this.weedPlant) this.weedPlant.update();
+        if (this.deskStash) this.deskStash.update();
+        if (this.entertainment) this.entertainment.update();
+        if (this.roomExtras) this.roomExtras.update();
+        if (this.outdoors) this.outdoors.update();
+        if (this.smoke) this.smoke.update();
         if (this.monitorScreen) this.monitorScreen.update();
         if (this.environment) this.environment.update();
         if (this.coffeeSteam) this.coffeeSteam.update();

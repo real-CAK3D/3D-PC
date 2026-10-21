@@ -66,7 +66,8 @@ export default class Renderer {
         this.overlayInstance.domElement.style.position = 'absolute';
         this.overlayInstance.domElement.style.top = '0px';
         this.overlayInstance.domElement.style.mixBlendMode = 'soft-light';
-        this.overlayInstance.domElement.style.opacity = '0.12';
+        // faint film grain; at 0.12 the per-frame noise read as flicker across the whole scene
+        this.overlayInstance.domElement.style.opacity = '0.04';
         // this.overlayInstance.domElement.style.mixBlendMode = 'luminosity';
         // this.overlayInstance.domElement.style.opacity = '1';
         this.overlayInstance.domElement.style.pointerEvents = 'none';

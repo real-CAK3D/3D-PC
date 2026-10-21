@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CAK3D Station</title>
+<style>
+  :root { --bg: #05060c; --panel: #0d1124; --line: #23305e; --ink: #e8ecff; --dim: #8b94c4; --accent: #3d8bff; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
+  header { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header b { font-size: 18px; letter-spacing: 2px; margin-right: auto; }
+  input, select, button { background: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 6px 8px; border-radius: 6px; font: inherit; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  #lib { width: min(420px, 60vw); }
+  #status { padding: 8px 14px; color: var(--dim); }
+  #games { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding: 14px; overflow-y: auto; height: calc(100% - 110px); }
+  .game { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
+  .game:hover { border-color: var(--accent); box-shadow: 0 0 14px rgba(61,139,255,.35); }
+  .game img, .game .blank { width: 100%; aspect-ratio: 1; object-fit: contain; background: #000; border-radius: 6px; }
+  .game .blank { display: grid; place-items: center; color: var(--dim); font-size: 28px; }
+  .game small { color: var(--dim); text-transform: uppercase; }
+  #player { position: fixed; inset: 0; background: #000; display: none; }
+  #player.on { display: block; }
+  #back { position: fixed; top: 8px; left: 8px; z-index: 10; display: none; }
+  #player.on ~ #back { display: block; }
+</style>
+</head>
+<body>
+<header>
+  <b>CAK3D STATION</b>
+  <input id="lib" placeholder="ROM library URL (your tailnet)">
+  <button id="save">Load library</button>
+  <select id="core" title="system for local files">
+    <option value="nds">Nintendo DS</option><option value="gba">Game Boy Advance</option><option value="gb">Game Boy / Color</option>
+    <option value="nes">NES</option><option value="snes">SNES</option><option value="n64">N64</option><option value="psx">PlayStation</option>
+    <option value="psp">PSP</option><option value="segaMD">Genesis</option>
+  </select>
+  <label><button id="pickBtn" type="button">Play a file from this device</button><input id="pick" type="file" hidden></label>
+</header>
+<div id="status">Loading library...</div>
+<div id="games"></div>
+<div id="player"><div id="game"></div></div>
+<button id="back">Back to games</button>
+<script>
+  // The library is CAK3D's private ROM server on Tailscale (tools/rom-server.mjs in the 3D-PC repo).
+  // Nothing is uploaded anywhere: games stream from that server, or from a file on this device.
+  var DEFAULT_LIB = 'https://nukebox.tailac984b.ts.net:8420/';
+  var libInput = document.getElementById('lib');
+  var statusEl = document.getElementById('status');
+  var grid = document.getElementById('games');
+  var lib;
+  try { lib = localStorage.getItem('cak3d-rom-library') || DEFAULT_LIB; } catch (e) { lib = DEFAULT_LIB; }
+  libInput.value = lib;
+
+  function load() {
+    lib = libInput.value.trim();
+    if (lib && !/\/$/.test(lib)) lib += '/';
+    try { localStorage.setItem('cak3d-rom-library', lib); } catch (e) {}
+    statusEl.textContent = 'Loading library...';
+    grid.innerHTML = '';
+    fetch(lib + 'index.json').then(function (r) { if (!r.ok) throw r.status; return r.json(); }).then(function (data) {
+      var games = data.games || [];
+      statusEl.textContent = games.length + ' games in the library';
+      games.forEach(function (g) {
+        var card = document.createElement('div');
+        card.className = 'game';
+        card.innerHTML = (g.cover ? '<img loading="lazy" alt="">' : '<div class="blank">🎮</div>') + '<b></b><small></small>';
+        if (g.cover) card.querySelector('img').src = lib + g.cover;
+        card.querySelector('b').textContent = g.name;
+        card.querySelector('small').textContent = g.system;
+        card.onclick = function () { start(lib + g.file, g.system, g.name); };
+        grid.appendChild(card);
+      });
+    }).catch(function () {
+      statusEl.textContent = "Can't reach the ROM library. Is rom-server running on the nukebox, and are you on Tailscale? You can still play a file from this device.";
+    });
+  }
+
+  var started = false;
+  function start(url, core, name) {
+    if (started) { location.href = '?rom=' + encodeURIComponent(url) + '&core=' + core + '&name=' + encodeURIComponent(name || ''); return; }
+    started = true;
+    document.getElementById('player').classList.add('on');
+    window.EJS_player = '#game';
+    window.EJS_core = core;
+    window.EJS_gameUrl = url;
+    window.EJS_gameName = name || 'game';
+    window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+    window.EJS_startOnLoaded = true;
+    window.EJS_color = '#3d8bff';
+    var s = document.createElement('script');
+    s.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
+    document.body.appendChild(s);
+  }
+
+  document.getElementById('save').onclick = load;
+  document.getElementById('pickBtn').onclick = function () { document.getElementById('pick').click(); };
+  document.getElementById('pick').onchange = function (e) {
+    var f = e.target.files[0];
+    if (f) start(URL.createObjectURL(f), document.getElementById('core').value, f.name);
+  };
+  document.getElementById('back').onclick = function () { location.href = location.pathname; };
+
+  var q = new URLSearchParams(location.search);
+  if (q.get('rom')) start(q.get('rom'), q.get('core') || 'nds', q.get('name'));
+  else load();
+</script>
+</body>
+</html>

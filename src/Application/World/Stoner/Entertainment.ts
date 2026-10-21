@@ -1,0 +1,525 @@
+import * as THREE from 'three';
+import Application from '../../Application';
+import { CameraKey } from '../../Camera/Camera';
+import UIEventBus from '../../UI/EventBus';
+import { canvasTexture, CM, FLOOR_Y, mat, RoundedBoxGeometry, shadows, woodTexture } from './props';
+import { papers } from './papers';
+import BezierEasing from 'bezier-easing';
+
+const ZOOM_EASE = BezierEasing(0.13, 0.99, 0, 1);
+
+// The TV wall faces the couch from the front of the room
+export const TV_SPOT = { x: -7800, z: 10200 };
+// the camera spots that count as "at the TV" (clicks there act instead of flying over)
+export const TV_VIEWS = [CameraKey.TV, CameraKey.TV_SCREEN, CameraKey.STEREO];
+const STAND = { width: 5200, depth: 1300, height: 1450 };
+const SCREEN = { w: 4300, h: 2420 };
+
+type Channel = { name: string; draw: (ctx: CanvasRenderingContext2D, w: number, h: number, t: number) => void };
+
+/**
+ * The couch's view: a TV with NewsStand-style channels, a PS5 that boots an
+ * emulator for your own ROMs, and a stereo that plays whatever Spotify is
+ * playing on the PC. Click the TV to flip channels.
+ */
+export default class Entertainment {
+    application: Application;
+    scene: THREE.Scene;
+    screenCanvas: HTMLCanvasElement;
+    screenCtx: CanvasRenderingContext2D;
+    screenTex: THREE.CanvasTexture;
+    channels: Channel[];
+    channel = 3;
+    banner = 0; // ms left to show the channel banner
+    lastDraw = 0;
+    speakerCones: THREE.Mesh[] = [];
+    receiverTex: THREE.CanvasTexture;
+    receiverCtx: CanvasRenderingContext2D;
+    playing = false;
+    nowPlaying = '';
+    stationOpen = false;
+    noise: ImageData;
+
+    constructor() {
+        this.application = new Application();
+        this.scene = this.application.scene;
+
+        this.channels = this.makeChannels();
+        this.buildStand();
+        this.buildTv();
+        this.buildSpeakers();
+        this.buildReceiver();
+        this.buildPs5();
+
+        // the stereo follows the Spotify window on the PC
+        window.addEventListener('message', (event) => {
+            if (!event.data || event.data.type !== 'cak3d-stereo') return;
+            this.playing = !!event.data.playing;
+            this.nowPlaying = event.data.title || '';
+        });
+        // the radio on the stereo panel, too
+        UIEventBus.on('stereoState', (state: { playing: boolean; title: string }) => {
+            this.playing = state.playing;
+            this.nowPlaying = state.title;
+        });
+        UIEventBus.on('stereoClosed', () => {
+            if (this.view === CameraKey.STEREO) this.application.camera.transition(CameraKey.TV, 1200);
+        });
+        UIEventBus.on('stationClosed', () => {
+            this.stationOpen = false;
+            if (this.channel === 0) this.channel = 3;
+        });
+    }
+
+    /** Everything here is a click target that first takes the camera to the couch */
+    clickable(obj: THREE.Object3D, onClick: () => void) {
+        obj.userData.focus = CameraKey.TV;
+        obj.userData.focusViews = TV_VIEWS;
+        obj.userData.onClick = onClick;
+    }
+
+    get view() {
+        const camera = this.application.camera;
+        return camera.currentKeyframe || camera.targetKeyframe;
+    }
+
+    buildStand() {
+        const wood = new THREE.MeshStandardMaterial({ map: woodTexture('#3b2617'), roughness: 0.6 });
+        const group = new THREE.Group();
+        group.position.set(TV_SPOT.x, FLOOR_Y, TV_SPOT.z);
+        const { width: W, depth: D, height: H } = STAND;
+        const top = new THREE.Mesh(new THREE.BoxGeometry(W, 120, D), wood);
+        top.position.y = H - 60;
+        const bottom = new THREE.Mesh(new THREE.BoxGeometry(W, 120, D), wood);
+        bottom.position.y = 200;
+        const shelf = new THREE.Mesh(new THREE.BoxGeometry(W - 240, 60, D - 100), wood);
+        shelf.position.y = H / 2 + 60;
+        group.add(top, bottom, shelf);
+        for (const sx of [-1, 1]) {
+            const side = new THREE.Mesh(new THREE.BoxGeometry(120, H - 140, D), wood);
+            side.position.set((sx * (W - 120)) / 2, H / 2, 0);
+            group.add(side);
+        }
+        // DVD-ish clutter and a controller on top
+        const controller = this.controller();
+        controller.position.set(-W / 2 + 500, H, -300);
+        controller.rotation.y = 0.4;
+        group.add(controller);
+        this.scene.add(shadows(group));
+    }
+
+    controller() {
+        const g = new THREE.Group();
+        const white = mat.std('#f2f2f4', 0.35);
+        const black = mat.std('#16161a', 0.4);
+        const body = new THREE.Mesh(new RoundedBoxGeometry(16 * CM, 3.2 * CM, 7 * CM, 3, 1.4 * CM), white);
+        body.position.y = 1.6 * CM;
+        g.add(body);
+        for (const sx of [-1, 1]) {
+            const grip = new THREE.Mesh(new RoundedBoxGeometry(4.5 * CM, 3 * CM, 8 * CM, 3, 1.4 * CM), black);
+            grip.position.set(sx * 6 * CM, 1.5 * CM, -2.5 * CM);
+            grip.rotation.y = sx * 0.3;
+            g.add(grip);
+        }
+        const pad = new THREE.Mesh(new THREE.BoxGeometry(6 * CM, 0.2 * CM, 3 * CM), black);
+        pad.position.set(0, 3.3 * CM, 1 * CM);
+        g.add(pad);
+        const glow = new THREE.Mesh(new THREE.BoxGeometry(6.4 * CM, 0.25 * CM, 0.3 * CM), mat.glow('#3d8bff'));
+        glow.position.set(0, 3.2 * CM, 2.6 * CM);
+        g.add(glow);
+        return g;
+    }
+
+    buildTv() {
+        this.screenCanvas = document.createElement('canvas');
+        this.screenCanvas.width = 640;
+        this.screenCanvas.height = 360;
+        this.screenCtx = this.screenCanvas.getContext('2d') as CanvasRenderingContext2D;
+        this.noise = this.screenCtx.createImageData(160, 90);
+        this.screenTex = new THREE.CanvasTexture(this.screenCanvas);
+        this.screenTex.encoding = THREE.sRGBEncoding;
+
+        const group = new THREE.Group();
+        const y = FLOOR_Y + STAND.height + 120 + SCREEN.h / 2;
+        group.position.set(TV_SPOT.x, y, TV_SPOT.z - 150);
+        group.rotation.y = Math.PI; // facing the couch (-z)
+
+        const bezel = new THREE.Mesh(new RoundedBoxGeometry(SCREEN.w + 120, SCREEN.h + 120, 120, 2, 40), mat.std('#0c0c0e', 0.3, 0.4));
+        group.add(bezel);
+        const screen = new THREE.Mesh(
+            new THREE.PlaneGeometry(SCREEN.w, SCREEN.h),
+            new THREE.MeshBasicMaterial({ map: this.screenTex, toneMapped: false })
+        );
+        screen.position.z = 62;
+        group.add(screen);
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(1400, 60, 500), mat.std('#0c0c0e', 0.3, 0.4));
+        foot.position.set(0, -SCREEN.h / 2 - 90, 0);
+        const neck = new THREE.Mesh(new THREE.BoxGeometry(200, 120, 80), mat.std('#0c0c0e', 0.3, 0.4));
+        neck.position.set(0, -SCREEN.h / 2 - 40, -40);
+        group.add(foot, neck);
+
+        // the screen lights the room a little
+        const glow = new THREE.PointLight('#8fb4ff', 0.6, 9000, 1.5);
+        glow.position.set(0, 0, 900);
+        group.add(glow);
+        this.scene.add(shadows(group, true, false));
+
+        // first click zooms in on the screen, after that each click flips the channel
+        this.clickable(group, () => {
+            if (this.view !== CameraKey.TV_SCREEN) {
+                this.application.camera.transition(CameraKey.TV_SCREEN, 1600, ZOOM_EASE);
+                return;
+            }
+            const count = this.channels.length;
+            do this.channel = (this.channel + 1) % count;
+            while (this.channel === 0 && !this.stationOpen);
+            this.banner = 2500;
+        });
+    }
+
+    buildSpeakers() {
+        const cabinet = new THREE.MeshStandardMaterial({ map: woodTexture('#1f1410'), roughness: 0.7 });
+        const grill = mat.std('#111114', 0.9);
+        const cone = mat.std('#2a2a2e', 0.6, 0.2);
+        for (const sx of [-1, 1]) {
+            const g = new THREE.Group();
+            g.position.set(TV_SPOT.x + sx * (STAND.width / 2 + 600), FLOOR_Y, TV_SPOT.z);
+            const box = new THREE.Mesh(new THREE.BoxGeometry(850, 3300, 900), cabinet);
+            box.position.y = 1650;
+            g.add(box);
+            const face = new THREE.Mesh(new THREE.PlaneGeometry(760, 3150), grill);
+            face.rotation.y = Math.PI;
+            face.position.set(0, 1650, -451);
+            g.add(face);
+            [2650, 1800, 900].forEach((h, i) => {
+                const r = i === 0 ? 140 : 300;
+                const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.7, 80, 32), cone);
+                c.rotation.x = Math.PI / 2;
+                c.position.set(0, h, -470);
+                g.add(c);
+                if (i > 0) this.speakerCones.push(c);
+            });
+            this.scene.add(shadows(g));
+            this.clickable(g, () => this.openStereo());
+        }
+    }
+
+    buildReceiver() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 96;
+        this.receiverCtx = canvas.getContext('2d') as CanvasRenderingContext2D;
+        this.receiverTex = new THREE.CanvasTexture(canvas);
+        this.receiverTex.encoding = THREE.sRGBEncoding;
+
+        const g = new THREE.Group();
+        g.position.set(TV_SPOT.x + 600, FLOOR_Y + 260, TV_SPOT.z);
+        const body = new THREE.Mesh(new THREE.BoxGeometry(1700, 480, 1000), mat.std('#1a1a1d', 0.4, 0.6));
+        body.position.y = 240;
+        g.add(body);
+        const display = new THREE.Mesh(new THREE.PlaneGeometry(900, 170), new THREE.MeshBasicMaterial({ map: this.receiverTex }));
+        display.rotation.y = Math.PI;
+        display.position.set(-150, 300, -501);
+        g.add(display);
+        for (const dx of [520, 720]) {
+            const knob = new THREE.Mesh(new THREE.CylinderGeometry(70, 70, 60, 24), mat.std('#c9ccd2', 0.3, 0.9));
+            knob.rotation.x = Math.PI / 2;
+            knob.position.set(-dx + 1200 - 600, 250, -520);
+            g.add(knob);
+        }
+        this.scene.add(shadows(g));
+        this.clickable(g, () => this.openStereo());
+    }
+
+    buildPs5() {
+        const g = new THREE.Group();
+        g.position.set(TV_SPOT.x + STAND.width / 2 + 1500, FLOOR_Y, TV_SPOT.z);
+        const white = mat.std('#f4f4f6', 0.35);
+        const black = mat.std('#101014', 0.3, 0.3);
+        // two curved white plates around a black core, standing up
+        const core = new THREE.Mesh(new THREE.BoxGeometry(200, 1300, 850), black);
+        core.position.y = 650;
+        g.add(core);
+        for (const sx of [-1, 1]) {
+            const shape = new THREE.Shape();
+            shape.moveTo(-430, 0);
+            shape.lineTo(430, 0);
+            shape.quadraticCurveTo(520, 700, 380, 1330);
+            shape.lineTo(-380, 1330);
+            shape.quadraticCurveTo(-520, 700, -430, 0);
+            const plate = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 60, bevelEnabled: false }), white);
+            plate.rotation.y = Math.PI / 2;
+            plate.position.set(sx * 130 + (sx < 0 ? -60 : 0), 0, 0);
+            g.add(plate);
+        }
+        const light = new THREE.Mesh(new THREE.BoxGeometry(212, 1200, 14), mat.glow('#3d8bff'));
+        light.position.set(0, 680, -430);
+        g.add(light);
+        const stand = new THREE.Mesh(new THREE.CylinderGeometry(260, 260, 60, 24), black);
+        stand.position.y = 30;
+        g.add(stand);
+        this.scene.add(shadows(g));
+        this.clickable(g, () => {
+            this.stationOpen = true;
+            this.channel = 0;
+            this.banner = 2500;
+            UIEventBus.dispatch('openStation', {});
+        });
+    }
+
+    /** Lean in on the receiver and pull up its station / playlist picker */
+    openStereo() {
+        this.application.camera.transition(CameraKey.STEREO, 1600, ZOOM_EASE);
+        UIEventBus.dispatch('openStereo', {});
+    }
+
+    /* ---------------------------------------------------------- channels */
+
+    makeChannels(): Channel[] {
+        const crawl = papers.map((p) => `${p.name.toUpperCase()}: ${p.motto}`).join('   ✦   ');
+        const stocks = ['GANJA', 'MAPLE', 'CHRON', 'BIG', 'HERBI', 'DISCO', 'CYPHR', 'HOMIE'].map((sym, i) => ({ sym, px: 40 + i * 9, open: 40 + i * 9 }));
+        const hist: number[] = [];
+        let index = 42069.5;
+        const open = index * 0.996;
+        for (let i = 0; i < 140; i++) hist.push(open + (index - open) * (i / 139) + Math.sin(i / 9) * 22);
+
+        return [
+            {
+                name: 'CAK3D STATION',
+                draw: (ctx, w, h, t) => {
+                    const g = ctx.createLinearGradient(0, 0, w, h);
+                    g.addColorStop(0, '#0a1a4a');
+                    g.addColorStop(1, '#000010');
+                    ctx.fillStyle = g;
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.strokeStyle = 'rgba(80,140,255,0.25)';
+                    for (let i = 0; i < 12; i++) {
+                        ctx.beginPath();
+                        ctx.arc(w / 2, h * 1.2, 120 + i * 40 + ((t * 0.03) % 40), Math.PI, 0);
+                        ctx.stroke();
+                    }
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'center';
+                    ctx.font = 'bold 44px Arial, sans-serif';
+                    ctx.fillText('CAK3D STATION', w / 2, h * 0.42);
+                    ctx.font = '22px Arial, sans-serif';
+                    ctx.fillText('game on the big screen', w / 2, h * 0.56);
+                },
+            },
+            {
+                name: 'STATIC',
+                draw: (ctx, w, h) => {
+                    const d = this.noise.data;
+                    for (let i = 0; i < d.length; i += 4) {
+                        const v = (Math.random() * 255) | 0;
+                        d[i] = d[i + 1] = d[i + 2] = v;
+                        d[i + 3] = 255;
+                    }
+                    ctx.putImageData(this.noise, 0, 0);
+                    ctx.drawImage(ctx.canvas, 0, 0, 160, 90, 0, 0, w, h);
+                },
+            },
+            {
+                name: 'OFF THE AIR',
+                draw: (ctx, w, h) => {
+                    const top = ['#c0c0c0', '#c0c000', '#00c0c0', '#00c000', '#c000c0', '#c00000', '#0000c0'];
+                    const low = ['#0000c0', '#131313', '#c000c0', '#131313', '#00c0c0', '#131313', '#c0c0c0'];
+                    top.forEach((c, i) => {
+                        ctx.fillStyle = c;
+                        ctx.fillRect((i * w) / 7, 0, w / 7 + 1, h * 0.72);
+                        ctx.fillStyle = low[i];
+                        ctx.fillRect((i * w) / 7, h * 0.72, w / 7 + 1, h * 0.28);
+                    });
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(w * 0.25, h * 0.36, w * 0.5, h * 0.24);
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'center';
+                    ctx.font = 'bold 30px "Courier New", monospace';
+                    ctx.fillText('THE GARDEN', w / 2, h * 0.47);
+                    ctx.font = '16px "Courier New", monospace';
+                    ctx.fillText('OFF THE AIR · PLEASE STAND BY', w / 2, h * 0.55);
+                },
+            },
+            {
+                name: 'WDWN NEWS',
+                draw: (ctx, w, h, t) => {
+                    ctx.fillStyle = '#10204a';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = '#c4161c';
+                    ctx.fillRect(0, 0, w, 50);
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'left';
+                    ctx.font = 'bold 30px Arial, sans-serif';
+                    ctx.fillText('WDWN  NEWS AT SIX', 20, 36);
+                    ctx.textAlign = 'right';
+                    ctx.font = 'bold 20px Arial, sans-serif';
+                    ctx.fillText(Math.floor(t / 600) % 2 ? '● LIVE' : '  LIVE', w - 20, 33);
+                    // anchor desk with a story card
+                    const story = papers[Math.floor(t / 7000) % papers.length];
+                    ctx.fillStyle = '#f5eedb';
+                    ctx.fillRect(40, 80, w - 80, 190);
+                    ctx.fillStyle = story.color;
+                    ctx.fillRect(40, 80, 14, 190);
+                    ctx.fillStyle = '#9c2a1c';
+                    ctx.textAlign = 'left';
+                    ctx.font = 'bold 16px Arial, sans-serif';
+                    ctx.fillText(`TOP STORY · ${story.when.toUpperCase()}`, 74, 112);
+                    ctx.fillStyle = '#1b1510';
+                    ctx.font = 'bold 40px Georgia, serif';
+                    ctx.fillText(story.name, 74, 165, w - 140);
+                    ctx.font = 'italic 22px Georgia, serif';
+                    ctx.fillText(story.motto, 74, 205, w - 140);
+                    ctx.font = '16px Arial, sans-serif';
+                    ctx.fillText(`reporting: ${story.by}`, 74, 245);
+                    // crawl
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, h - 50, w, 50);
+                    ctx.fillStyle = '#ffd23d';
+                    ctx.font = 'bold 22px Arial, sans-serif';
+                    const width = ctx.measureText(crawl).width + 200;
+                    const x = w - ((t * 0.12) % (width + w));
+                    ctx.fillText(crawl, x, h - 17);
+                },
+            },
+            {
+                name: 'GNBC MARKETS',
+                draw: (ctx, w, h, t) => {
+                    index *= 1 + (Math.random() - 0.48) * 0.0012;
+                    hist.push(index);
+                    if (hist.length > 160) hist.shift();
+                    stocks.forEach((s) => (s.px *= 1 + (Math.random() - 0.485) * 0.01));
+                    ctx.fillStyle = '#05140c';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'left';
+                    ctx.font = 'bold 26px Arial, sans-serif';
+                    ctx.fillText('GNBC', 20, 36);
+                    ctx.font = '16px Arial, sans-serif';
+                    ctx.fillText('MARKETS LIVE · GARDEN TOKEN AVERAGE', 100, 34);
+                    const up = index >= open;
+                    ctx.font = 'bold 46px Arial, sans-serif';
+                    ctx.fillText(index.toFixed(2), 20, 100);
+                    ctx.fillStyle = up ? '#35e07a' : '#ff4d4d';
+                    ctx.font = 'bold 22px Arial, sans-serif';
+                    ctx.fillText(`${up ? '▲' : '▼'} ${Math.abs(index - open).toFixed(2)} (${(((index - open) / open) * 100).toFixed(2)}%)`, 20, 130);
+                    // chart
+                    const mn = Math.min(...hist);
+                    const mx = Math.max(...hist);
+                    ctx.beginPath();
+                    hist.forEach((v, k) => {
+                        const x = 20 + (k / (hist.length - 1)) * (w - 40);
+                        const y = 280 - ((v - mn) / Math.max(1, mx - mn)) * 130;
+                        if (k) ctx.lineTo(x, y);
+                        else ctx.moveTo(x, y);
+                    });
+                    ctx.strokeStyle = up ? '#35e07a' : '#ff4d4d';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    // tape
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, h - 44, w, 44);
+                    ctx.font = 'bold 20px "Courier New", monospace';
+                    const tape = stocks.map((s) => `${s.sym} ${s.px.toFixed(2)} ${s.px >= s.open ? '▲' : '▼'}`).join('    ');
+                    const tw = ctx.measureText(tape).width + 100;
+                    ctx.fillStyle = '#ffd23d';
+                    ctx.fillText(tape, w - ((t * 0.1) % (tw + w)), h - 15);
+                },
+            },
+            {
+                name: 'THE FIREPLACE',
+                draw: (ctx, w, h, t) => {
+                    ctx.fillStyle = '#120804';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = '#3a2214';
+                    for (let i = 0; i < 6; i++) ctx.fillRect(0, h - 40 - i * 10, w, 4);
+                    for (let i = 0; i < 70; i++) {
+                        const x = w * 0.2 + ((i * 97) % (w * 0.6));
+                        const life = ((t * 0.002 + i * 0.37) % 1);
+                        const y = h - 60 - life * h * 0.6;
+                        const r = (1 - life) * 46 + 6;
+                        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+                        g.addColorStop(0, `rgba(255,${200 - life * 150},60,${0.9 - life * 0.8})`);
+                        g.addColorStop(1, 'rgba(255,60,0,0)');
+                        ctx.fillStyle = g;
+                        ctx.beginPath();
+                        ctx.arc(x + Math.sin(t * 0.004 + i) * 10 * life, y, r, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.fillStyle = '#2a170c';
+                    ctx.fillRect(w * 0.18, h - 70, w * 0.64, 30);
+                },
+            },
+            {
+                name: 'CAK3D FM',
+                draw: (ctx, w, h, t) => {
+                    ctx.fillStyle = '#0b0412';
+                    ctx.fillRect(0, 0, w, h);
+                    const bars = 32;
+                    for (let i = 0; i < bars; i++) {
+                        const level = this.playing
+                            ? 0.25 + 0.75 * Math.abs(Math.sin(t * 0.004 * (1 + (i % 5) * 0.3) + i))
+                            : 0.04;
+                        const bh = level * h * 0.6;
+                        ctx.fillStyle = `hsl(${270 + i * 3}, 90%, ${50 + level * 20}%)`;
+                        ctx.fillRect(30 + (i * (w - 60)) / bars, h * 0.78 - bh, (w - 60) / bars - 4, bh);
+                    }
+                    ctx.fillStyle = '#f3e7ff';
+                    ctx.textAlign = 'center';
+                    ctx.font = 'bold 34px Arial, sans-serif';
+                    ctx.fillText('CAK3D FM', w / 2, 52);
+                    ctx.font = '20px Arial, sans-serif';
+                    ctx.fillText(this.playing ? `♪ ${this.nowPlaying || 'now playing'}` : 'click the stereo to pick a station', w / 2, h - 30, w - 40);
+                },
+            },
+        ];
+    }
+
+    drawReceiver(t: number) {
+        const ctx = this.receiverCtx;
+        const { width: w, height: h } = ctx.canvas;
+        ctx.fillStyle = '#06141a';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#5bd1ff';
+        ctx.font = 'bold 30px "Courier New", monospace';
+        ctx.textAlign = 'left';
+        const label = this.playing ? `♪ ${this.nowPlaying || 'SPOTIFY'}` : 'CAK3D FM  ·  STANDBY';
+        const tw = ctx.measureText(label).width;
+        const x = tw > w - 140 ? 20 - ((t * 0.08) % (tw + 40)) + 20 : 20;
+        ctx.fillText(label, x, 40);
+        for (let i = 0; i < 16; i++) {
+            const level = this.playing ? Math.abs(Math.sin(t * 0.006 + i * 0.7)) : 0.05;
+            ctx.fillStyle = level > 0.75 ? '#ff4d6a' : '#35e07a';
+            ctx.fillRect(20 + i * 28, 86 - level * 30, 20, level * 30);
+        }
+        this.receiverTex.needsUpdate = true;
+    }
+
+    update() {
+        const t = this.application.time.elapsed;
+        const dt = this.application.time.delta;
+        // ~20fps is plenty for a TV
+        if (t - this.lastDraw > 50) {
+            this.lastDraw = t;
+            const ctx = this.screenCtx;
+            const { width: w, height: h } = this.screenCanvas;
+            const ch = this.channels[this.channel];
+            ctx.save();
+            ch.draw(ctx, w, h, t);
+            ctx.restore();
+            if (this.banner > 0) {
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.fillRect(20, 20, 300, 44);
+                ctx.fillStyle = '#5bff8a';
+                ctx.textAlign = 'left';
+                ctx.font = 'bold 24px "Courier New", monospace';
+                ctx.fillText(`CH ${this.channel + 2}  ${ch.name}`, 32, 50);
+            }
+            this.screenTex.needsUpdate = true;
+            this.drawReceiver(t);
+        }
+        this.banner = Math.max(0, this.banner - dt);
+        // speaker cones thump while music plays
+        const thump = this.playing ? 1 + Math.max(0, Math.sin(t * 0.012)) * 0.06 : 1;
+        for (const c of this.speakerCones) c.scale.set(thump, 1, thump);
+    }
+}

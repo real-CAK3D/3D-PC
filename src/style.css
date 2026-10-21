@@ -6,6 +6,7 @@
 html,
 body {
     overflow: hidden;
+    background: radial-gradient(circle at 50% 40%, #1c1030, #05030a 70%);
 }
 
 .webgl {

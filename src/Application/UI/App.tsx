@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom';
 import LoadingScreen from './components/LoadingScreen';
 import HelpPrompt from './components/HelpPrompt';
 import InterfaceUI from './components/InterfaceUI';
+import StereoPanel from './components/StereoPanel';
+import GameStation from './components/GameStation';
 import eventBus from './EventBus';
 import './style.css';
 
@@ -19,6 +21,8 @@ const App = () => {
         <div id="ui-app">
             {!loading && <HelpPrompt />}
             <LoadingScreen />
+            <StereoPanel />
+            <GameStation />
         </div>
     );
 };

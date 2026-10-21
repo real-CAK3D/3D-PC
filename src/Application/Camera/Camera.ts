@@ -16,6 +16,8 @@ import {
     LoadingKeyframe,
     DeskKeyframe,
     OrbitControlsStart,
+    PanKeyframe,
+    keys,
 } from './CameraKeyframes';
 
 export enum CameraKey {
@@ -24,6 +26,12 @@ export enum CameraKey {
     LOADING = 'loading',
     DESK = 'desk',
     ORBIT_CONTROLS_START = 'orbitControlsStart',
+    PAPER = 'paper',
+    DRAWERS = 'drawers',
+    DRAWER_INSIDE = 'drawerInside',
+    TV = 'tv',
+    TV_SCREEN = 'tvScreen',
+    STEREO = 'stereo',
 }
 export default class Camera extends EventEmitter {
     application: Application;
@@ -64,12 +72,23 @@ export default class Camera extends EventEmitter {
             loading: new LoadingKeyframe(),
             desk: new DeskKeyframe(),
             orbitControlsStart: new OrbitControlsStart(),
+            paper: new CameraKeyframeInstance(keys.paper),
+            drawers: new CameraKeyframeInstance(keys.drawers),
+            drawerInside: new CameraKeyframeInstance(keys.drawerInside),
+            tv: new PanKeyframe(keys.tv),
+            tvScreen: new CameraKeyframeInstance(keys.tvScreen),
+            stereo: new CameraKeyframeInstance(keys.stereo),
         };
 
         document.addEventListener('mousedown', (event) => {
             event.preventDefault();
             // @ts-ignore
             if (event.target.id === 'prevent-click') return;
+            // @ts-ignore
+            if (event.target.closest && event.target.closest('#prevent-click')) return;
+            // drawers, floppies and the paper on the desk handle their own clicks
+            const world = this.application.world;
+            if (world && world.deskStash && world.deskStash.handleMouseDown(event)) return;
             // print target and current keyframe
             if (
                 this.currentKeyframe === CameraKey.IDLE ||
@@ -81,6 +100,23 @@ export default class Camera extends EventEmitter {
                 this.targetKeyframe === CameraKey.DESK
             ) {
                 this.transition(CameraKey.IDLE);
+            } else if (
+                this.currentKeyframe === CameraKey.PAPER ||
+                this.currentKeyframe === CameraKey.DRAWERS ||
+                this.currentKeyframe === CameraKey.DRAWER_INSIDE
+            ) {
+                this.transition(CameraKey.DESK);
+            } else if (this.currentKeyframe === CameraKey.TV) {
+                this.transition(CameraKey.IDLE, 2500);
+            } else if (this.currentKeyframe === CameraKey.TV_SCREEN) {
+                this.transition(CameraKey.TV);
+            } else if (
+                this.currentKeyframe === CameraKey.MONITOR &&
+                // @ts-ignore
+                !event.inComputer
+            ) {
+                // clicking anywhere off the screen backs out of the monitor
+                this.trigger('leftMonitor');
             }
         });
 
@@ -126,7 +162,8 @@ export default class Camera extends EventEmitter {
         this.instance = new THREE.PerspectiveCamera(
             35,
             this.sizes.width / this.sizes.height,
-            10,
+            // a near plane of 10 left almost no depth precision across the room (z-fighting flicker)
+            150,
             900000
         );
         this.currentKeyframe = CameraKey.LOADING;
