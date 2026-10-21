@@ -23,6 +23,8 @@ export const apps: StashItem[] = [
     { name: 'Scanimal', language: 'Kotlin', repo: gh('Scanimal'), model: 'cyd' },
     { name: 'Pokedex', language: 'JavaScript', repo: gh('Pokedex'), model: 'gameboy' },
     { name: 'ESP-Watch', language: 'C', repo: gh('ESP-Watch'), model: 'watch' },
+    { name: 'Tiny Truck', description: 'Drive the tiny truck around a 3D world.', language: 'JavaScript', url: 'https://cak3d-truck.vercel.app', repo: gh('tiny-truck'), color: '#ff5b2a' },
+    { name: 'Platform of Things', description: '3D interactive Three.js portfolio.', language: 'TypeScript', repo: gh('platform-of-things'), color: '#2ab8ff' },
     { name: 'CAK3D-Crawler', language: 'HTML', url: 'https://cak3d-crawler.vercel.app', repo: gh('CAK3D-Crawler'), color: '#a35bff' },
     { name: 'NewsStand', description: "The Corner Chronicle: one newsstand for every one of the Garden's papers.", language: 'Python', repo: gh('NewsStand'), color: '#e07a24' },
     { name: 'Spac3-Gh0st', description: 'Spac3-Gh0st: improved/portable rewrite of Hack-Safe', language: 'JavaScript', url: 'http://hack-safe.tailac984b.ts.net:8765/', repo: gh('Hack-Safe-v2'), color: '#36ff7a' },

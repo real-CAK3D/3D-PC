@@ -5,6 +5,7 @@ import UIEventBus from '../../UI/EventBus';
 import { canvasTexture, CM, FLOOR_Y, mat, RoundedBoxGeometry, shadows, woodTexture } from './props';
 import { papers } from './papers';
 import BezierEasing from 'bezier-easing';
+import TvScreen, { Clip, Media } from './TvScreen';
 
 const ZOOM_EASE = BezierEasing(0.13, 0.99, 0, 1);
 
@@ -15,7 +16,16 @@ export const TV_VIEWS = [CameraKey.TV, CameraKey.TV_SCREEN, CameraKey.STEREO];
 export const STAND = { width: 5200, depth: 1300, height: 1450 };
 export const SCREEN = { w: 4300, h: 2420 };
 
-type Channel = { name: string; draw: (ctx: CanvasRenderingContext2D, w: number, h: number, t: number) => void };
+// Jellyfin on the nukebox, shared on the tailnet with:
+//   tailscale serve --bg --https=8096 http://127.0.0.1:8096
+export const JELLYFIN_URL = 'https://nukebox.tailac984b.ts.net:8096/web/';
+
+type Channel = {
+    name: string;
+    draw?: (ctx: CanvasRenderingContext2D, w: number, h: number, t: number) => void; // drawn on the WebGL screen
+    media?: () => Media; // played in the browser layer (TvScreen)
+};
+type TvData = { [list: string]: any[] };
 
 /**
  * The couch's view: a TV with NewsStand-style channels, a PS5 that boots an
@@ -29,7 +39,7 @@ export default class Entertainment {
     screenCtx: CanvasRenderingContext2D;
     screenTex: THREE.CanvasTexture;
     channels: Channel[];
-    channel = 3;
+    channel = 2; // Toon Town
     banner = 0; // ms left to show the channel banner
     lastDraw = 0;
     speakerCones: THREE.Mesh[] = [];
@@ -40,12 +50,22 @@ export default class Entertainment {
     stationOpen = false;
     noise: ImageData;
     screen: THREE.Mesh;
+    tv: TvScreen;
+    data: TvData = {};
 
     constructor() {
         this.application = new Application();
         this.scene = this.application.scene;
 
         this.channels = this.makeChannels();
+        // the NewsStand TV's lineup (cartoons, ads, movies, YouTube shows), bundled with the site
+        fetch('tv.json')
+            .then((r) => r.json())
+            .then((d) => {
+                this.data = d;
+                this.tune(this.channel);
+            })
+            .catch(() => {});
         this.buildStand();
         this.buildTv();
         this.buildSpeakers();
@@ -146,6 +166,8 @@ export default class Entertainment {
         screen.position.z = 62;
         group.add(screen);
         this.screen = screen;
+        const center = new THREE.Vector3(TV_SPOT.x, y, TV_SPOT.z - 150 - 66);
+        this.tv = new TvScreen(center, SCREEN.w, SCREEN.h);
         const foot = new THREE.Mesh(new THREE.BoxGeometry(1400, 60, 500), mat.std('#0c0c0e', 0.3, 0.4));
         foot.position.set(0, -SCREEN.h / 2 - 90, 0);
         const neck = new THREE.Mesh(new THREE.BoxGeometry(200, 120, 80), mat.std('#0c0c0e', 0.3, 0.4));
@@ -165,10 +187,7 @@ export default class Entertainment {
                 this.application.camera.transition(CameraKey.TV_SCREEN, 1600, ZOOM_EASE);
                 return;
             }
-            const count = this.channels.length;
-            do this.channel = (this.channel + 1) % count;
-            while (this.channel === 0 && !this.stationOpen);
-            this.banner = 2500;
+            this.tune((this.channel + 1) % this.channels.length);
         });
     }
 
@@ -274,7 +293,7 @@ export default class Entertainment {
         const open = index * 0.996;
         for (let i = 0; i < 140; i++) hist.push(open + (index - open) * (i / 139) + Math.sin(i / 9) * 22);
 
-        return [
+        const drawn: Channel[] = [
             {
                 name: 'CAK3D STATION',
                 draw: (ctx, w, h, t) => {
@@ -346,7 +365,12 @@ export default class Entertainment {
                     ctx.font = 'bold 20px Arial, sans-serif';
                     ctx.fillText(Math.floor(t / 600) % 2 ? '● LIVE' : '  LIVE', w - 20, 33);
                     // anchor desk with a story card
-                    const story = papers[Math.floor(t / 7000) % papers.length];
+                    const heads = this.data.headlines as { tag?: string; title: string; dek?: string }[] | undefined;
+                    const p = papers[Math.floor(t / 7000) % papers.length];
+                    const h0 = heads && heads.length ? heads[Math.floor(t / 7000) % heads.length] : null;
+                    const story = h0
+                        ? { color: p.color, when: h0.tag || 'TOP STORY', name: h0.title, motto: h0.dek || '', by: 'WDWN' }
+                        : p;
                     ctx.fillStyle = '#f5eedb';
                     ctx.fillRect(40, 80, w - 80, 190);
                     ctx.fillStyle = story.color;
@@ -463,6 +487,76 @@ export default class Entertainment {
                 },
             },
         ];
+        return this.lineup(drawn);
+    }
+
+    /** NewsStand order: canvas channels drawn here, the rest played for real on the TV */
+    lineup(drawn: Channel[]): Channel[] {
+        const byName = (n: string) => drawn.find((c) => c.name === n) as Channel;
+        const list = (key: string) => (this.data[key] || []) as Clip[];
+        const video = (key: string, label: (c: Clip) => string) => (): Media => ({ kind: 'video', list: list(key), label });
+        const yt = (key: string, label: (c: Clip) => string) => (): Media => ({ kind: 'youtube', list: list(key), label });
+        return [
+            byName('STATIC'),
+            byName('OFF THE AIR'),
+            { name: 'TOON TOWN', media: video('cartoons', (c) => `📺 TOON TOWN · ${c.title}`) },
+            byName('WDWN NEWS'),
+            { name: 'WEATHER', draw: (ctx, w, h, t) => this.drawWeather(ctx, w, h, t) },
+            byName('GNBC MARKETS'),
+            { name: 'GARDEN MTV', media: yt('mtv', (c) => `🎵 ${c.artist} · ${c.title}`) },
+            { name: 'CHOPPER 7', media: yt('chases', (c) => `🚁 LIVE · ${c.title}`) },
+            { name: 'GARDEN KITCHEN', media: yt('kitchen', (c) => `🍳 ${c.show} · ${c.title}`) },
+            { name: 'COMMERCIALS', media: video('ads', (c) => `COMMERCIAL BREAK · ${c.title}`) },
+            { name: 'THE LATE MOVIE', media: video('movies', (c) => `🎬 THE LATE MOVIE · ${c.title}`) },
+            { name: 'THE FIREPLACE', media: yt('fire', () => '') },
+            { name: '[ADULT SWIM]', media: yt('aswim', (c) => `${c.show} · ${c.title}`) },
+            { name: 'LECTURE HALL', media: yt('lectures', (c) => `${c.show} · ${c.title}`) },
+            { name: 'JOE ROGAN', media: yt('jre', (c) => c.title) },
+            { name: 'THREE STOOGES', media: video('stooges', (c) => `🥧 THE THREE STOOGES · ${c.title}`) },
+            { name: 'ANTIQUES ROADSHOW', media: yt('roadshow', (c) => `Antiques Roadshow · ${c.title}`) },
+            byName('CAK3D FM'),
+            { name: 'JELLYFIN', media: () => ({ kind: 'iframe', url: JELLYFIN_URL, label: 'JELLYFIN · CAK3D - NUKEBOX' }) },
+        ];
+    }
+
+    /** Switch to channel `i`: draw it, or hand it to the browser layer */
+    tune(i: number) {
+        this.channel = i;
+        const ch = this.channels[i];
+        if (ch.media) {
+            this.tv.play(ch.media());
+            this.tv.banner(`CH ${i + 2}  ${ch.name}`);
+        } else {
+            this.tv.clear();
+            this.banner = 2500;
+        }
+    }
+
+    drawWeather(ctx: CanvasRenderingContext2D, w: number, h: number, t: number) {
+        const outdoors = this.application.world.outdoors;
+        const wx = outdoors ? outdoors.weather : { text: 'Getting the latest...', temp: null };
+        const g = ctx.createLinearGradient(0, 0, 0, h);
+        g.addColorStop(0, '#1d3f8a');
+        g.addColorStop(1, '#0a1838');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#ffd23d';
+        ctx.fillRect(0, 0, w, 48);
+        ctx.fillStyle = '#0a1838';
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 24px Arial, sans-serif';
+        ctx.fillText('THE WEATHER CHANNEL · LOCAL FORECAST', 20, 33);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 34px Arial, sans-serif';
+        ctx.fillText('LEWISTON, MAINE', 30, 110);
+        ctx.font = 'bold 110px Arial, sans-serif';
+        ctx.fillText(wx.temp !== null ? `${wx.temp}°F` : '--', 30, 240);
+        ctx.font = '34px Arial, sans-serif';
+        ctx.fillText(wx.text, 30, 295, w - 60);
+        ctx.textAlign = 'right';
+        ctx.font = 'bold 30px "Courier New", monospace';
+        ctx.fillText(new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }), w - 30, 110);
+        void t;
     }
 
     drawReceiver(t: number) {
@@ -495,7 +589,7 @@ export default class Entertainment {
             const { width: w, height: h } = this.screenCanvas;
             const ch = this.channels[this.channel];
             ctx.save();
-            ch.draw(ctx, w, h, t);
+            if (ch.draw) ch.draw(ctx, w, h, t);
             ctx.restore();
             if (this.banner > 0) {
                 ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -509,6 +603,8 @@ export default class Entertainment {
             this.drawReceiver(t);
         }
         this.banner = Math.max(0, this.banner - dt);
+        this.tv.setLoud(TV_VIEWS.indexOf(this.view as CameraKey) >= 0);
+        this.tv.update();
         // speaker cones thump while music plays
         const thump = this.playing ? 1 + Math.max(0, Math.sin(t * 0.012)) * 0.06 : 1;
         for (const c of this.speakerCones) c.scale.set(thump, 1, thump);

@@ -1,10 +1,9 @@
 import * as THREE from 'three';
-import { CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 import BezierEasing from 'bezier-easing';
 import Application from '../../Application';
 import { CameraKey } from '../../Camera/Camera';
 import UIEventBus from '../../UI/EventBus';
-import Entertainment, { SCREEN, STAND, TV_SPOT } from './Entertainment';
+import Entertainment from './Entertainment';
 import { FLOOR_Y, shadows } from './props';
 
 // RetroPad button indices (what EmulatorJS's simulateInput takes)
@@ -76,9 +75,6 @@ export default class GameMode {
     on = false;
     layout = 0;
     held = 0; // 0 on the table .. 1 in your hands
-    iframe: HTMLIFrameElement;
-    css: CSS3DObject;
-    hole: THREE.Mesh;
     pressed: { [index: number]: boolean } = {};
 
     constructor(entertainment: Entertainment) {
@@ -94,8 +90,6 @@ export default class GameMode {
         this.controller.userData.onClick = () => this.setOn(!this.on);
         this.scene.add(this.controller);
 
-        this.buildScreen();
-
         UIEventBus.on('gameMode', (state: { on: boolean }) => this.setOn(state.on));
         document.addEventListener('keydown', (e) => this.onKey(e, true));
         document.addEventListener('keyup', (e) => this.onKey(e, false));
@@ -109,58 +103,19 @@ export default class GameMode {
         });
     }
 
-    /** The emulator page, placed over the TV screen like the PC's iframe sits over its monitor */
-    buildScreen() {
-        const pxW = 1600;
-        const pxH = Math.round((pxW * SCREEN.h) / SCREEN.w);
-        const div = document.createElement('div');
-        div.style.width = `${pxW}px`;
-        div.style.height = `${pxH}px`;
-        div.style.background = '#000';
-        this.iframe = document.createElement('iframe');
-        this.iframe.style.width = '100%';
-        this.iframe.style.height = '100%';
-        this.iframe.style.border = '0';
-        this.iframe.title = 'CAK3D Station';
-        this.iframe.allow = 'autoplay; gamepad; fullscreen';
-        div.appendChild(this.iframe);
-
-        const center = new THREE.Vector3(TV_SPOT.x, FLOOR_Y + STAND.height + 120 + SCREEN.h / 2, TV_SPOT.z - 150 - 66);
-        this.css = new CSS3DObject(div);
-        this.css.position.copy(center);
-        this.css.rotation.y = Math.PI;
-        this.css.scale.setScalar(SCREEN.w / pxW);
-        this.css.visible = false;
-        this.application.cssScene.add(this.css);
-
-        // a see-through cutout so the CSS layer behind the canvas shows on the TV
-        this.hole = new THREE.Mesh(
-            new THREE.PlaneGeometry(SCREEN.w, SCREEN.h),
-            // black + alpha 0: white with alpha 0 composites as white on a premultiplied canvas
-            new THREE.MeshBasicMaterial({ color: '#000000', opacity: 0, transparent: true, blending: THREE.NoBlending, side: THREE.DoubleSide })
-        );
-        this.hole.position.copy(center);
-        this.hole.rotation.y = Math.PI;
-        this.hole.visible = false;
-        this.scene.add(this.hole);
-    }
-
     setOn(on: boolean) {
         if (on === this.on) return;
         this.on = on;
         const camera = this.application.camera;
         if (on) {
-            // only load the emulator the first time it's needed
-            if (!this.iframe.src) this.iframe.src = 'emulator/index.html';
             if (camera.currentKeyframe !== CameraKey.TV_SCREEN) camera.transition(CameraKey.TV, 1800, ZOOM_EASE);
         } else {
             this.releaseAll();
             if (camera.currentKeyframe === CameraKey.TV_SCREEN) camera.transition(CameraKey.TV, 1200);
         }
-        this.css.visible = on;
-        (this.css.element as HTMLElement).style.display = on ? 'block' : 'none';
-        this.hole.visible = on;
-        this.entertainment.screen.visible = !on;
+        // the emulator takes over the TV; putting the controller down brings the channel back
+        this.entertainment.tv.showGame(on);
+        if (!on) this.entertainment.tune(this.entertainment.channel);
         UIEventBus.dispatch('gameModeState', { on, layout: LAYOUTS[this.layout].name });
     }
 
@@ -203,7 +158,7 @@ export default class GameMode {
         }
         if (down && key === 'g') {
             // PS button: back to the game library
-            const win = this.iframe.contentWindow as any;
+            const win = this.entertainment.tv.emulator.contentWindow as any;
             if (win && win.cak3dHome) win.cak3dHome();
             return true;
         }
@@ -216,7 +171,7 @@ export default class GameMode {
     press(index: number, down: boolean, value = 1) {
         if (!!this.pressed[index] === down && value === 1) return;
         this.pressed[index] = down;
-        const win = this.iframe.contentWindow as any;
+        const win = this.entertainment.tv.emulator.contentWindow as any;
         if (win && win.cak3dInput) win.cak3dInput(index, down ? value : 0);
     }
 
@@ -273,7 +228,7 @@ export default class GameMode {
 
     stick(index: number, value: number) {
         this.pressed[index] = value > 0;
-        const win = this.iframe.contentWindow as any;
+        const win = this.entertainment.tv.emulator.contentWindow as any;
         if (win && win.cak3dInput) win.cak3dInput(index, value);
     }
 

@@ -18,7 +18,7 @@ const DRAWERS = [
     { key: 'apps', y: [-1080, -610] as [number, number], items: apps },
     { key: 'sites', y: [-1630, -1150] as [number, number], items: sites },
 ];
-const PER_ROW = 5; // floppies per row; gadgets get their own row up front
+const PER_ROW = 6; // floppies per row (overlapping a little); gadgets get their own row up front
 
 // The floppy drive bay on the front of the computer
 const FLOPPY_SLOT = new THREE.Vector3(500, -225, 712);
@@ -162,7 +162,7 @@ export default class DeskStash {
             } else {
                 const col = d % PER_ROW;
                 const row = Math.floor(d / PER_ROW);
-                rest.set(cx + (col - (PER_ROW - 1) / 2) * 270, bottomY + 60 + (col % 2) * 14, frontZ - gadgetRow - 170 - row * 330);
+                rest.set(cx + (col - (PER_ROW - 1) / 2) * 232, bottomY + 60 + (col % 2) * 14, frontZ - gadgetRow - 170 - row * 330);
             }
             // lying flat, label toward the front of the drawer, a little messy
             const k = g >= 0 ? g : d + 3;

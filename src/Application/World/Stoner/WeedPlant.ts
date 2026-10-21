@@ -149,9 +149,9 @@ export default class WeedPlant {
         }
 
         const leafMat = new THREE.MeshStandardMaterial({
-            // same green as the buds' calyxes
-            color: '#4f9a2e',
-            emissive: '#123a0a',
+            // deep green; the emissive keeps it reading green under the purple LEDs
+            color: '#2a6e1a',
+            emissive: '#174d0c',
             roughness: 0.7,
             side: THREE.DoubleSide,
         });
