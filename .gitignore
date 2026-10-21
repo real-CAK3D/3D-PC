@@ -3,4 +3,5 @@ package-lock.json
 .DS_Store
 *.psd
 
-public/tools/.rom-discs.json
+public/
+tools/.rom-discs.json
