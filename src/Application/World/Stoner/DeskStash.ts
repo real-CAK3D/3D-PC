@@ -7,6 +7,7 @@ import { canvasTexture, CM, DESK_Y, shadows } from './props';
 import { apps, sites, doubleWide, homeInventory, StashItem } from './stash';
 import { gadget } from './gadgets';
 import { doubleWideTexture } from './newspaper';
+import { papers } from './papers';
 
 // Drawer fronts in the baked desk mesh (world units, measured from the model)
 const DRAWER_X = [-3115, -1585];
@@ -276,10 +277,51 @@ export default class DeskStash {
         sheet.position.set(-2063, DESK_Y + 9, 990);
         sheet.rotation.y = 0.12;
         sheet.userData.item = doubleWide;
+        this.decorateStacks();
         sheet.userData.zoom = CameraKey.PAPER;
         shadows(sheet, true, true);
         this.scene.add(sheet);
         this.clickables.push(sheet);
+    }
+
+    /** The paper stacks wear copies of other Garden papers (just for looks, not clickable) */
+    decorateStacks() {
+        const picks: [string, string][] = [
+            ['paper_stack_1', 'sunday-smoke'],
+            ['paper_stack_2', 'roach-clips'],
+        ];
+        for (const [name, id] of picks) {
+            const stack = this.scene.getObjectByName(name);
+            const paper = papers.find((p) => p.id === id);
+            if (!stack || !paper) continue;
+            const box = new THREE.Box3().setFromObject(stack);
+            const tex = canvasTexture(512, 512, (ctx, w, h) => {
+                ctx.fillStyle = '#f2ecdc';
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = paper.color;
+                ctx.fillRect(0, 0, w, 96);
+                ctx.fillStyle = '#f5eedb';
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 50px Georgia, serif';
+                ctx.fillText(paper.name, w / 2, 66, w - 40);
+                ctx.fillStyle = '#1b1510';
+                ctx.font = 'italic 24px Georgia, serif';
+                ctx.fillText(paper.motto, w / 2, 134, w - 40);
+                ctx.fillRect(30, 150, w - 60, 3);
+                ctx.font = 'bold 15px Arial, sans-serif';
+                ctx.fillText(`${paper.when.toUpperCase()} · BY ${paper.by.toUpperCase()}`, w / 2, 178);
+                ctx.fillStyle = '#6b5d4b';
+                for (let col = 0; col < 3; col++)
+                    for (let y = 205; y < h - 30; y += 20) ctx.fillRect(30 + col * 160, y, 140 * (0.7 + 0.3 * Math.abs(Math.sin(y + col))), 8);
+            });
+            const top = new THREE.Mesh(
+                new THREE.PlaneGeometry(box.max.x - box.min.x - 60, box.max.z - box.min.z - 60),
+                new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95 })
+            );
+            top.rotation.x = -Math.PI / 2;
+            top.position.set((box.min.x + box.max.x) / 2, box.max.y + 4, (box.min.z + box.max.z) / 2);
+            this.scene.add(top);
+        }
     }
 
     /** Baked desk props that open sites: the binders -> HomeInventory (the NewsStand is through the door) */
