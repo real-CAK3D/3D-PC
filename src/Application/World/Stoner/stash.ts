@@ -24,7 +24,7 @@ export const apps: StashItem[] = [
     { name: 'Pokedex', language: 'JavaScript', repo: gh('Pokedex'), model: 'gameboy' },
     { name: 'ESP-Watch', language: 'C', repo: gh('ESP-Watch'), model: 'watch' },
     { name: 'Tiny Truck', description: 'Drive the tiny truck around a 3D world.', language: 'JavaScript', url: 'https://cak3d-truck.vercel.app', repo: gh('tiny-truck'), color: '#ff5b2a' },
-    { name: 'Platform of Things', description: '3D interactive Three.js portfolio.', language: 'TypeScript', repo: gh('platform-of-things'), color: '#2ab8ff' },
+    { name: 'Platform of Things', description: '3D interactive Three.js portfolio.', language: 'TypeScript', url: 'https://real-cak3d.github.io/platform-of-things/', repo: gh('platform-of-things'), color: '#2ab8ff' },
     { name: 'Arachnotes', description: 'The Arachnotes web app (CAK3D-Crawler).', language: 'JavaScript', url: 'https://arachnotes.vercel.app', repo: gh('CAK3D-Crawler'), color: '#a35bff' },
     { name: 'NewsStand', description: "The Corner Chronicle: one newsstand for every one of the Garden's papers.", language: 'Python', repo: gh('NewsStand'), color: '#e07a24' },
     { name: 'Spac3-Gh0st', description: 'Spac3-Gh0st: improved/portable rewrite of Hack-Safe', language: 'JavaScript', url: 'http://hack-safe.tailac984b.ts.net:8765/', repo: gh('Hack-Safe-v2'), color: '#36ff7a' },
