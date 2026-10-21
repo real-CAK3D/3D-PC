@@ -12,8 +12,8 @@ const ZOOM_EASE = BezierEasing(0.13, 0.99, 0, 1);
 export const TV_SPOT = { x: -7800, z: 10200 };
 // the camera spots that count as "at the TV" (clicks there act instead of flying over)
 export const TV_VIEWS = [CameraKey.TV, CameraKey.TV_SCREEN, CameraKey.STEREO];
-const STAND = { width: 5200, depth: 1300, height: 1450 };
-const SCREEN = { w: 4300, h: 2420 };
+export const STAND = { width: 5200, depth: 1300, height: 1450 };
+export const SCREEN = { w: 4300, h: 2420 };
 
 type Channel = { name: string; draw: (ctx: CanvasRenderingContext2D, w: number, h: number, t: number) => void };
 
@@ -39,6 +39,7 @@ export default class Entertainment {
     nowPlaying = '';
     stationOpen = false;
     noise: ImageData;
+    screen: THREE.Mesh;
 
     constructor() {
         this.application = new Application();
@@ -64,10 +65,6 @@ export default class Entertainment {
         });
         UIEventBus.on('stereoClosed', () => {
             if (this.view === CameraKey.STEREO) this.application.camera.transition(CameraKey.TV, 1200);
-        });
-        UIEventBus.on('stationClosed', () => {
-            this.stationOpen = false;
-            if (this.channel === 0) this.channel = 3;
         });
     }
 
@@ -100,15 +97,11 @@ export default class Entertainment {
             side.position.set((sx * (W - 120)) / 2, H / 2, 0);
             group.add(side);
         }
-        // DVD-ish clutter and a controller on top
-        const controller = this.controller();
-        controller.position.set(-W / 2 + 500, H, -300);
-        controller.rotation.y = 0.4;
-        group.add(controller);
         this.scene.add(shadows(group));
     }
 
-    controller() {
+    /** DualSense-style controller (GameMode puts it on the coffee table) */
+    static controller() {
         const g = new THREE.Group();
         const white = mat.std('#f2f2f4', 0.35);
         const black = mat.std('#16161a', 0.4);
@@ -152,6 +145,7 @@ export default class Entertainment {
         );
         screen.position.z = 62;
         group.add(screen);
+        this.screen = screen;
         const foot = new THREE.Mesh(new THREE.BoxGeometry(1400, 60, 500), mat.std('#0c0c0e', 0.3, 0.4));
         foot.position.set(0, -SCREEN.h / 2 - 90, 0);
         const neck = new THREE.Mesh(new THREE.BoxGeometry(200, 120, 80), mat.std('#0c0c0e', 0.3, 0.4));
@@ -165,6 +159,7 @@ export default class Entertainment {
         this.scene.add(shadows(group, true, false));
 
         // first click zooms in on the screen, after that each click flips the channel
+        group.userData.tv = true;
         this.clickable(group, () => {
             if (this.view !== CameraKey.TV_SCREEN) {
                 this.application.camera.transition(CameraKey.TV_SCREEN, 1600, ZOOM_EASE);
@@ -233,7 +228,10 @@ export default class Entertainment {
 
     buildPs5() {
         const g = new THREE.Group();
-        g.position.set(TV_SPOT.x + STAND.width / 2 + 1500, FLOOR_Y, TV_SPOT.z);
+        // lying on its side on the stand's shelf, front facing the couch
+        // (the console is built standing up along +y, ~380 thick; roll it onto its side)
+        g.position.set(TV_SPOT.x - 700, FLOOR_Y + STAND.height / 2 + 90 + 200, TV_SPOT.z + 60);
+        g.rotation.set(0, 0, Math.PI / 2);
         const white = mat.std('#f4f4f6', 0.35);
         const black = mat.std('#101014', 0.3, 0.3);
         // two curved white plates around a black core, standing up
@@ -255,16 +253,9 @@ export default class Entertainment {
         const light = new THREE.Mesh(new THREE.BoxGeometry(212, 1200, 14), mat.glow('#3d8bff'));
         light.position.set(0, 680, -430);
         g.add(light);
-        const stand = new THREE.Mesh(new THREE.CylinderGeometry(260, 260, 60, 24), black);
-        stand.position.y = 30;
-        g.add(stand);
         this.scene.add(shadows(g));
-        this.clickable(g, () => {
-            this.stationOpen = true;
-            this.channel = 0;
-            this.banner = 2500;
-            UIEventBus.dispatch('openStation', {});
-        });
+        // power on: the game shows up on the TV (see GameMode)
+        this.clickable(g, () => UIEventBus.dispatch('gameMode', { on: true }));
     }
 
     /** Lean in on the receiver and pull up its station / playlist picker */

@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import Application from '../../Application';
-import { canvasTexture, CM, FLOOR_Y, leafPath, mat, range, shadows, woodTexture } from './props';
+import { canvasTexture, CM, FLOOR_Y, inspectable, leafPath, mat, range, shadows, woodTexture } from './props';
 import { ROOM, WINDOW } from './Room';
-import { StashItem } from './stash';
+import { newsStand, StashItem } from './stash';
+import { CameraKey } from '../../Camera/Camera';
+import { keys } from '../../Camera/CameraKeyframes';
 
 export const myPetId: StashItem = {
     name: 'MyPetID',
@@ -49,9 +51,21 @@ export default class RoomExtras {
         this.setLight(false);
     }
 
-    clickable(obj: THREE.Object3D, onClick: () => void) {
+    clickable(obj: THREE.Object3D, onClick: () => void, inspectDir?: THREE.Vector3 | null, group?: THREE.Object3D) {
         obj.userData.onClick = onClick;
         obj.userData.anywhere = true;
+        if (inspectDir !== null) inspectable(obj, inspectDir, group);
+    }
+
+    /** Through the open door and down the hall: opens The Corner Chronicle (NewsStand) */
+    walkToNewsStand() {
+        if (!this.doorOpen) return;
+        // open it right away, while the click still counts as a user action (popup blockers)
+        window.open(newsStand.url, '_blank', 'noopener');
+        const camera = this.application.camera;
+        keys.inspect.position.set(DOOR.x, FLOOR_Y + 3600, ROOM.front - 2600);
+        keys.inspect.focalPoint.set(DOOR.x, FLOOR_Y + 3200, ROOM.front + 3000);
+        camera.transition(CameraKey.INSPECT, 1800);
     }
 
     /** Single-sided like the others, so the orbiting camera sees in from outside */
@@ -98,7 +112,50 @@ export default class RoomExtras {
         top.position.y = DOOR.height + 80;
         frame.add(top);
         // dark hallway behind the door
-        const hall = new THREE.Mesh(new THREE.PlaneGeometry(DOOR.width, DOOR.height), new THREE.MeshBasicMaterial({ color: '#0a0710' }));
+        // past the door: a dark hallway with the Corner Chronicle's newsstand lit up at the end
+        const hallTex = canvasTexture(300, 700, (ctx, w, h) => {
+            ctx.fillStyle = '#0a0710';
+            ctx.fillRect(0, 0, w, h);
+            // hallway walls converging
+            ctx.fillStyle = '#15101f';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(w * 0.32, h * 0.3);
+            ctx.lineTo(w * 0.32, h * 0.72);
+            ctx.lineTo(0, h);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(w, 0);
+            ctx.lineTo(w * 0.68, h * 0.3);
+            ctx.lineTo(w * 0.68, h * 0.72);
+            ctx.lineTo(w, h);
+            ctx.fill();
+            // the kiosk at the end: green awning, warm window
+            ctx.fillStyle = '#ffd9a0';
+            ctx.fillRect(w * 0.36, h * 0.46, w * 0.28, h * 0.22);
+            for (let i = 0; i < 6; i++) {
+                ctx.fillStyle = i % 2 ? '#f5eedb' : '#1f5a2a';
+                ctx.fillRect(w * 0.34 + (i * w * 0.32) / 6, h * 0.4, (w * 0.32) / 6 + 1, h * 0.06);
+            }
+            ctx.fillStyle = '#1b1510';
+            ctx.fillRect(w * 0.36, h * 0.34, w * 0.28, h * 0.06);
+            ctx.fillStyle = '#f5eedb';
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 13px Georgia, serif';
+            ctx.fillText('THE CORNER', w / 2, h * 0.365);
+            ctx.fillText('CHRONICLE', w / 2, h * 0.39);
+            ctx.fillStyle = 'rgba(255, 217, 160, 0.25)';
+            ctx.beginPath();
+            ctx.moveTo(w * 0.36, h * 0.68);
+            ctx.lineTo(w * 0.64, h * 0.68);
+            ctx.lineTo(w * 0.9, h);
+            ctx.lineTo(w * 0.1, h);
+            ctx.fill();
+        });
+        const hall = new THREE.Mesh(new THREE.PlaneGeometry(DOOR.width, DOOR.height), new THREE.MeshBasicMaterial({ map: hallTex }));
+        // walk through the open door to the NewsStand
+        hall.userData.anywhere = true;
+        hall.userData.onClick = () => this.walkToNewsStand();
         hall.rotation.y = Math.PI;
         hall.position.set(0, DOOR.height / 2, 400);
         frame.add(hall);
@@ -144,7 +201,8 @@ export default class RoomExtras {
         sign.position.set(-DOOR.width / 2, DOOR.height * 0.78, -90);
         this.door.add(sign);
         this.scene.add(shadows(this.door));
-        this.clickable(this.door, () => (this.doorOpen = !this.doorOpen));
+        // no close-up for the door: click it to swing it open, then click the doorway
+        this.clickable(this.door, () => (this.doorOpen = !this.doorOpen), null);
     }
 
     setWindow() {
@@ -183,7 +241,7 @@ export default class RoomExtras {
         rod.rotation.z = Math.PI / 2;
         rod.position.set(0, H / 2 + 400, 180);
         g.add(rod);
-        this.scene.add(g);
+        this.scene.add(inspectable(g, new THREE.Vector3(1, 0.1, 0)));
     }
 
     setPosters() {
@@ -191,7 +249,8 @@ export default class RoomExtras {
             const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 }));
             m.position.copy(pos);
             m.rotation.y = ry;
-            this.scene.add(m);
+            // look at it straight on
+            this.scene.add(inspectable(m, new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry))));
         };
 
         // magazine-cover pin-up frame: shows static/textures/posters/pinup.jpg if you add one,
@@ -212,14 +271,6 @@ export default class RoomExtras {
             }
             ctx.restore();
             ctx.fillStyle = '#fbf3e6';
-            ctx.textAlign = 'center';
-            ctx.font = '700 92px "Didot", "Bodoni MT", Georgia, serif';
-            ctx.fillText('BOUDOIR', w / 2, 100);
-            ctx.font = '600 16px Arial, sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText('THE 4:20 ISSUE', 24, 130);
-            ctx.textAlign = 'right';
-            ctx.fillText('CAK3D_CREATIONS', w - 24, 130);
             ctx.textAlign = 'left';
             ctx.font = 'italic 28px Georgia, serif';
             ctx.fillText('Late night', 24, h - 90);
@@ -239,7 +290,7 @@ export default class RoomExtras {
         const pinup = new THREE.Mesh(new THREE.PlaneGeometry(2400, 3120), pinupMat);
         pinup.position.set(ROOM.right - 40, 2600, 9000);
         pinup.rotation.y = -Math.PI / 2;
-        this.scene.add(pinup);
+        this.scene.add(inspectable(pinup, new THREE.Vector3(-1, 0, 0)));
         const frame = new THREE.Mesh(new THREE.BoxGeometry(60, 3240, 2520), mat.std('#c9a23a', 0.35, 0.8));
         frame.position.set(ROOM.right - 10, 2600, 9000);
         this.scene.add(frame);
@@ -280,6 +331,81 @@ export default class RoomExtras {
             3200,
             new THREE.Vector3(ROOM.left + 40, 2600, 1600),
             Math.PI / 2
+        );
+
+        // TV wall: a survival map and a festival flyer
+        poster(
+            canvasTexture(420, 600, (ctx, w, h) => {
+                ctx.fillStyle = '#c9c1a5';
+                ctx.fillRect(0, 0, w, h);
+                // coastline and roads
+                ctx.fillStyle = '#5a7a8a';
+                ctx.beginPath();
+                ctx.moveTo(0, h * 0.78);
+                ctx.bezierCurveTo(w * 0.3, h * 0.7, w * 0.6, h * 0.86, w, h * 0.74);
+                ctx.lineTo(w, h);
+                ctx.lineTo(0, h);
+                ctx.fill();
+                ctx.strokeStyle = '#7a3b1c';
+                ctx.lineWidth = 3;
+                for (let i = 0; i < 7; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(range(0, w), range(80, h * 0.7));
+                    ctx.bezierCurveTo(range(0, w), range(80, h * 0.7), range(0, w), range(80, h * 0.7), range(0, w), range(80, h * 0.75));
+                    ctx.stroke();
+                }
+                ctx.fillStyle = '#2f4a22';
+                for (let i = 0; i < 40; i++) {
+                    ctx.beginPath();
+                    ctx.arc(range(0, w), range(90, h * 0.72), range(8, 26), 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.fillStyle = '#1b1510';
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 54px Impact, "Arial Black", sans-serif';
+                ctx.fillText('CHERNARUS', w / 2, 62);
+                ctx.fillStyle = '#9c2a1c';
+                ctx.font = 'bold 26px Impact, Arial, sans-serif';
+                ctx.fillText('STAY ALIVE', w / 2, h - 24);
+            }),
+            1900,
+            2700,
+            new THREE.Vector3(-2300, 2600, ROOM.front - 40),
+            Math.PI
+        );
+        poster(
+            canvasTexture(420, 600, (ctx, w, h) => {
+                ctx.fillStyle = '#07040f';
+                ctx.fillRect(0, 0, w, h);
+                for (let i = 0; i < 40; i++) {
+                    ctx.strokeStyle = `hsla(${280 + i * 3}, 90%, 60%, ${0.15 + (i % 3) * 0.1})`;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    for (let x = 0; x <= w; x += 10) {
+                        const y = h * 0.45 + Math.sin(x * 0.04 + i * 0.5) * (20 + i * 3);
+                        if (x === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+                }
+                ctx.fillStyle = '#5bff8a';
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 30px Arial, sans-serif';
+                ctx.fillText('CAK3D FM PRESENTS', w / 2, 60);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 88px Impact, "Arial Black", sans-serif';
+                ctx.fillText('DnB', w / 2, 170);
+                ctx.font = 'bold 50px Impact, "Arial Black", sans-serif';
+                ctx.fillText('ALL NIGHT', w / 2, 230);
+                ctx.fillStyle = '#d29bff';
+                ctx.font = '22px Arial, sans-serif';
+                ctx.fillText('live looping on the RC-505', w / 2, h - 90);
+                ctx.fillText('doors at 4:20 · bring a friend', w / 2, h - 56);
+            }),
+            1900,
+            2700,
+            new THREE.Vector3(-12800, 2600, ROOM.front - 40),
+            Math.PI
         );
 
         // Appalachian Trail map, for the hikes
@@ -376,7 +502,7 @@ export default class RoomExtras {
         }
         this.scene.add(shadows(g, true, false));
         // the fan itself responds to clicks too: speed through 0-3
-        this.clickable(g, () => this.cycleFan());
+        this.clickable(g, () => this.cycleFan(), new THREE.Vector3(0.3, -1, 0.5));
     }
 
     setSwitch() {
@@ -417,9 +543,10 @@ export default class RoomExtras {
         this.dial.add(pointer);
         g.add(this.dial);
         this.scene.add(shadows(g));
-        this.clickable(this.toggle, () => this.setLight(!this.lightOn));
-        this.clickable(this.dial, () => this.cycleFan());
-        this.clickable(plate, () => this.setLight(!this.lightOn));
+        const front = new THREE.Vector3(0, 0, -1);
+        this.clickable(this.toggle, () => this.setLight(!this.lightOn), front, g);
+        this.clickable(this.dial, () => this.cycleFan(), front, g);
+        this.clickable(plate, () => this.setLight(!this.lightOn), front, g);
     }
 
     setDogBowls() {
@@ -500,6 +627,7 @@ export default class RoomExtras {
         this.scene.add(shadows(g));
         this.clickable(g, () => {
             const stash = this.application.world.deskStash;
+            if (!stash) return;
             if (stash) stash.loadOnPc(myPetId, 'desk');
         });
     }

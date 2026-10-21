@@ -4,7 +4,7 @@ import { CameraKey } from '../../Camera/Camera';
 import { keys } from '../../Camera/CameraKeyframes';
 import BezierEasing from 'bezier-easing';
 import { canvasTexture, CM, DESK_Y, shadows } from './props';
-import { apps, sites, doubleWide, homeInventory, newsStand, StashItem } from './stash';
+import { apps, sites, doubleWide, homeInventory, StashItem } from './stash';
 import { gadget } from './gadgets';
 import { doubleWideTexture } from './newspaper';
 
@@ -68,6 +68,8 @@ export default class DeskStash {
     hovered: THREE.Object3D | null = null;
     leaveTimer: number | undefined;
     inserting: Insert | null = null;
+    inspecting: THREE.Object3D | null = null;
+    beforeInspect: CameraKey = CameraKey.DESK;
 
     constructor() {
         this.application = new Application();
@@ -78,9 +80,9 @@ export default class DeskStash {
         this.buildNewspaper();
         this.setDeskLinks();
 
-        // props elsewhere in the room that registered a click handler
+        // props elsewhere in the room that registered a click handler or want a close look
         this.scene.traverse((obj) => {
-            if (obj.userData.onClick) this.clickables.push(obj);
+            if ((obj.userData.onClick || obj.userData.inspect) && this.clickables.indexOf(obj) < 0) this.clickables.push(obj);
         });
 
         document.addEventListener('mousemove', (event) => this.onMouseMove(event));
@@ -274,57 +276,17 @@ export default class DeskStash {
         sheet.position.set(-2063, DESK_Y + 9, 990);
         sheet.rotation.y = 0.12;
         sheet.userData.item = doubleWide;
-        this.buildChronicleStack();
         sheet.userData.zoom = CameraKey.PAPER;
         shadows(sheet, true, true);
         this.scene.add(sheet);
         this.clickables.push(sheet);
     }
 
-    /** A folded copy of The Corner Chronicle on top of the paper stack, so you know what it opens */
-    buildChronicleStack() {
-        const stack = this.scene.getObjectByName('paper_stack_1');
-        if (!stack) return;
-        const box = new THREE.Box3().setFromObject(stack);
-        const tex = canvasTexture(512, 512, (ctx, w, h) => {
-            ctx.fillStyle = '#f2ecdc';
-            ctx.fillRect(0, 0, w, h);
-            ctx.fillStyle = '#1f5a2a';
-            ctx.fillRect(0, 0, w, 90);
-            ctx.fillStyle = '#f5eedb';
-            ctx.textAlign = 'center';
-            ctx.font = 'bold 44px Georgia, serif';
-            ctx.fillText('The Corner Chronicle', w / 2, 60);
-            ctx.fillStyle = '#1b1510';
-            ctx.font = 'bold 20px Arial, sans-serif';
-            ctx.fillText('EVERY GARDEN PAPER · ONE RACK', w / 2, 125);
-            ctx.fillRect(30, 140, w - 60, 3);
-            ctx.font = 'bold 40px Georgia, serif';
-            ctx.fillText('THE NEWSSTAND IS OPEN', w / 2, 200);
-            ctx.fillStyle = '#6b5d4b';
-            for (let col = 0; col < 3; col++)
-                for (let y = 240; y < h - 30; y += 20) ctx.fillRect(30 + col * 160, y, 140 * (0.7 + 0.3 * Math.abs(Math.sin(y + col))), 8);
-        });
-        const top = new THREE.Mesh(
-            new THREE.PlaneGeometry(box.max.x - box.min.x - 60, box.max.z - box.min.z - 60),
-            new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95 })
-        );
-        top.rotation.x = -Math.PI / 2;
-        top.position.set((box.min.x + box.max.x) / 2, box.max.y + 4, (box.min.z + box.max.z) / 2);
-        top.userData.item = newsStand;
-        this.scene.add(top);
-        this.clickables.push(top);
-    }
-
-    /** Baked desk props that open sites: binders -> HomeInventory, paper stacks -> NewsStand */
+    /** Baked desk props that open sites: the binders -> HomeInventory (the NewsStand is through the door) */
     setDeskLinks() {
         const links: [string, StashItem][] = [
             ['binder_1', homeInventory],
             ['binder_2', homeInventory],
-            ['paper_stack_1', newsStand],
-            ['paper_stack_2', newsStand],
-            ['paper_holder_top', newsStand],
-            ['paper_holder_bottom', newsStand],
         ];
         for (const [name, item] of links) {
             const obj = this.scene.getObjectByName(name);
@@ -346,6 +308,7 @@ export default class DeskStash {
             CameraKey.TV,
             CameraKey.TV_SCREEN,
             CameraKey.STEREO,
+            CameraKey.INSPECT,
         ];
         return (
             camera.freeCam ||
@@ -382,6 +345,21 @@ export default class DeskStash {
         const camera = this.application.camera;
         const view = camera.currentKeyframe || camera.targetKeyframe;
         const hit = this.pick(event);
+
+        // first click on anything we added: go have a look at it
+        if (hit && hit.userData.inspect && !camera.freeCam) {
+            const target = hit.userData.inspectGroup || hit;
+            if (this.inspecting !== target || view !== CameraKey.INSPECT) {
+                this.inspect(target);
+                return true;
+            }
+        }
+        // clicking off it steps back to wherever we were
+        if (!hit && view === CameraKey.INSPECT) {
+            this.inspecting = null;
+            camera.transition(this.beforeInspect, 1400, ZOOM_EASE);
+            return true;
+        }
 
         // wall switches, the fan, the door, the dog bowls... work from any view
         if (hit && hit.userData.anywhere && hit.userData.onClick) {
@@ -427,6 +405,30 @@ export default class DeskStash {
             this.loadOnPc(obj.userData.item, 'desk');
         }
         return true;
+    }
+
+    /** Fly the camera to a spot in front of `obj`, sized so it fills the view */
+    inspect(obj: THREE.Object3D) {
+        const camera = this.application.camera;
+        const view = camera.currentKeyframe || camera.targetKeyframe;
+        if (view !== CameraKey.INSPECT && view) this.beforeInspect = view as CameraKey;
+        this.inspecting = obj;
+        const box = new THREE.Box3().setFromObject(obj);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        let dir: THREE.Vector3 = obj.userData.inspectDir;
+        if (!dir) {
+            // look at it from the middle of the room
+            dir = new THREE.Vector3(-4400 - center.x, 0, 4700 - center.z);
+            if (dir.lengthSq() < 1) dir.set(0, 0, 1);
+            dir.normalize();
+            dir.y = 0.25;
+            dir.normalize();
+        }
+        const distance = Math.max(size.x, size.y, size.z) * 2.2 + 700;
+        keys.inspect.focalPoint.copy(center);
+        keys.inspect.position.copy(center).addScaledVector(dir, distance);
+        camera.transition(CameraKey.INSPECT, 1500, ZOOM_EASE);
     }
 
     findSlot(obj: THREE.Object3D): Slot | undefined {

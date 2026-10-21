@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import Application from '../../Application';
-import { canvasTexture, FLOOR_Y, mergeBufferGeometries, range, shadows } from './props';
+import { canvasTexture, FLOOR_Y, inspectable, mergeBufferGeometries, range, shadows } from './props';
 
 /**
  * Replaces the baked house plant next to the desk with a cannabis plant in a
@@ -23,15 +23,16 @@ export default class WeedPlant {
         this.group = new THREE.Group();
         this.group.position.set(3650, FLOOR_Y, -50);
         this.build();
-        this.scene.add(shadows(this.group));
+        this.scene.add(inspectable(shadows(this.group), new THREE.Vector3(-0.4, 0.15, 1)));
     }
 
     build() {
         // fabric pot + soil
         const potH = 1150;
+        // open-topped so you can see the dirt inside
         const pot = new THREE.Mesh(
-            new THREE.CylinderGeometry(640, 560, potH, 32),
-            new THREE.MeshStandardMaterial({ color: '#232323', roughness: 1 })
+            new THREE.CylinderGeometry(640, 560, potH, 32, 1, true),
+            new THREE.MeshStandardMaterial({ color: '#232323', roughness: 1, side: THREE.DoubleSide })
         );
         pot.position.y = potH / 2;
         const rim = new THREE.Mesh(
@@ -40,13 +41,43 @@ export default class WeedPlant {
         );
         rim.rotation.x = Math.PI / 2;
         rim.position.y = potH;
-        const soil = new THREE.Mesh(
-            new THREE.CircleGeometry(620, 32),
-            new THREE.MeshStandardMaterial({ color: '#3a2618', roughness: 1 })
-        );
+        const dirt = canvasTexture(256, 256, (ctx, w, h) => {
+            ctx.fillStyle = '#3a2618';
+            ctx.fillRect(0, 0, w, h);
+            for (let i = 0; i < 1800; i++) {
+                const l = range(15, 45);
+                ctx.fillStyle = `hsl(25, ${range(25, 45)}%, ${l}%)`;
+                ctx.fillRect(range(0, w), range(0, h), range(1, 4), range(1, 4));
+            }
+            // perlite specks
+            for (let i = 0; i < 120; i++) {
+                ctx.fillStyle = 'rgba(240,240,235,0.9)';
+                ctx.beginPath();
+                ctx.arc(range(0, w), range(0, h), range(1, 3), 0, Math.PI * 2);
+                ctx.fill();
+            }
+        });
+        const soil = new THREE.Mesh(new THREE.CircleGeometry(625, 32), new THREE.MeshStandardMaterial({ map: dirt, roughness: 1 }));
         soil.rotation.x = -Math.PI / 2;
-        soil.position.y = potH - 60;
-        this.group.add(pot, rim, soil);
+        soil.position.y = potH - 90;
+        // a few clumps so it isn't flat
+        const clumps = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(45, 0), new THREE.MeshStandardMaterial({ map: dirt, roughness: 1 }), 40);
+        const cm = new THREE.Matrix4();
+        for (let i = 0; i < 40; i++) {
+            const a = range(0, Math.PI * 2);
+            const r = Math.sqrt(range(0.05, 1)) * 560;
+            const sc = range(0.5, 1.4);
+            cm.compose(
+                new THREE.Vector3(Math.cos(a) * r, potH - 90, Math.sin(a) * r),
+                new THREE.Quaternion().setFromEuler(new THREE.Euler(range(0, 3), range(0, 3), 0)),
+                new THREE.Vector3(sc, sc * 0.5, sc)
+            );
+            clumps.setMatrixAt(i, cm);
+        }
+        const bottom = new THREE.Mesh(new THREE.CircleGeometry(560, 32), new THREE.MeshStandardMaterial({ color: '#232323' }));
+        bottom.rotation.x = -Math.PI / 2;
+        bottom.position.y = 2;
+        this.group.add(pot, rim, soil, clumps, bottom);
 
         const stemMat = new THREE.MeshStandardMaterial({ color: '#5f8a34', roughness: 0.8 });
         const leafGeo = fanLeafGeometry();
@@ -118,8 +149,9 @@ export default class WeedPlant {
         }
 
         const leafMat = new THREE.MeshStandardMaterial({
-            color: '#3dbb3a',
-            emissive: '#0f4a0c',
+            // same green as the buds' calyxes
+            color: '#4f9a2e',
+            emissive: '#123a0a',
             roughness: 0.7,
             side: THREE.DoubleSide,
         });
@@ -245,10 +277,10 @@ function colaGeometry() {
 /** Frosty green calyxes with orange pistils curling all over */
 function budTexture() {
     return canvasTexture(256, 256, (ctx, w, h) => {
-        ctx.fillStyle = '#4f9a2e';
+        ctx.fillStyle = '#7cc44a';
         ctx.fillRect(0, 0, w, h);
         for (let i = 0; i < 500; i++) {
-            const g = 120 + Math.floor(range(0, 90));
+            const g = 160 + Math.floor(range(0, 80));
             ctx.fillStyle = `rgb(${Math.floor(g * 0.45)},${g},${Math.floor(g * 0.25)})`;
             ctx.beginPath();
             ctx.arc(range(0, w), range(0, h), range(2, 7), 0, Math.PI * 2);

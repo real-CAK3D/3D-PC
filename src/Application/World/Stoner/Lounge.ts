@@ -5,8 +5,11 @@ import {
     bong,
     bottle,
     can,
+    canvasTexture,
+    mat,
     CM,
     fabricTexture,
+    inspectable,
     FLOOR_Y,
     lighter,
     nug,
@@ -22,6 +25,8 @@ import {
 import { ROOM } from './Room';
 import { CameraKey } from '../../Camera/Camera';
 import { TV_VIEWS } from './Entertainment';
+import { phoneApps } from './phoneApps';
+import UIEventBus from '../../UI/EventBus';
 
 const COUCH = { x: -7800, z: ROOM.back + 1650, width: 7200, depth: 3000 };
 const TABLE = { x: -7800, z: 3500, width: 4400, depth: 2100, height: 1400 };
@@ -93,10 +98,52 @@ export default class Lounge {
 
         this.scene.add(shadows(group));
 
+        this.setPhone(group, W, armW, legH + 1650);
+
         // click the couch to sit down facing the TV
         group.userData.focus = CameraKey.TV;
         group.userData.focusViews = TV_VIEWS;
         group.userData.onClick = () => {};
+    }
+
+    /** Android phone lying on the couch's right arm: look at it, then pick it up */
+    setPhone(couch: THREE.Group, W: number, armW: number, armTop: number) {
+        const tex = canvasTexture(180, 380, (ctx, w, h) => {
+            const g = ctx.createLinearGradient(0, 0, w, h);
+            g.addColorStop(0, '#2a0f45');
+            g.addColorStop(1, '#0d1f12');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, w, h);
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.font = '300 44px Arial, sans-serif';
+            const now = new Date();
+            ctx.fillText(`${now.getHours() % 12 || 12}:${String(now.getMinutes()).padStart(2, '0')}`, w / 2, 80);
+            phoneApps.slice(0, 12).forEach((a, i) => {
+                ctx.fillStyle = a.color;
+                const x = 22 + (i % 4) * 38;
+                const y = 140 + Math.floor(i / 4) * 52;
+                ctx.beginPath();
+                ctx.arc(x + 12, y, 15, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.fillRect(w / 2 - 30, h - 16, 60, 4);
+        });
+        const body = mat.std('#121216', 0.3, 0.5);
+        const phone = new THREE.Mesh(new RoundedBoxGeometry(7.5 * CM, 0.85 * CM, 16 * CM, 2, 0.4 * CM), body);
+        const screen = new THREE.Mesh(
+            new THREE.PlaneGeometry(7 * CM, 15.4 * CM),
+            new THREE.MeshBasicMaterial({ map: tex })
+        );
+        screen.rotation.x = -Math.PI / 2;
+        screen.position.y = 0.44 * CM;
+        phone.add(screen);
+        phone.position.set(W / 2 - armW / 2, armTop + 0.45 * CM, 200);
+        phone.rotation.y = 0.35;
+        couch.add(phone);
+        inspectable(phone, new THREE.Vector3(0.1, 1, -0.35));
+        phone.userData.onClick = () => UIEventBus.dispatch('openPhone', {});
     }
 
     setTable(): THREE.Vector3 {
@@ -142,7 +189,7 @@ export default class Lounge {
             obj.position.y += top.y;
             obj.position.z += top.z + dz;
             obj.rotation.y = ry;
-            this.scene.add(shadows(obj));
+            this.scene.add(inspectable(shadows(obj), new THREE.Vector3(0.1, 1, -0.6)));
             return obj;
         };
 

@@ -229,6 +229,8 @@ export default class MonitorScreen extends EventEmitter {
 
         // Create GL plane
         const material = new THREE.MeshLambertMaterial();
+        // must stay black: the room's lights would otherwise tint this see-through plane white
+        material.color.set(0x000000);
         material.side = THREE.DoubleSide;
         material.opacity = 0;
         material.transparent = true;

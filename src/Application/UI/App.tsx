@@ -4,7 +4,8 @@ import LoadingScreen from './components/LoadingScreen';
 import HelpPrompt from './components/HelpPrompt';
 import InterfaceUI from './components/InterfaceUI';
 import StereoPanel from './components/StereoPanel';
-import GameStation from './components/GameStation';
+import ControllerLegend from './components/ControllerLegend';
+import PhoneScreen from './components/PhoneScreen';
 import eventBus from './EventBus';
 import './style.css';
 
@@ -22,7 +23,8 @@ const App = () => {
             {!loading && <HelpPrompt />}
             <LoadingScreen />
             <StereoPanel />
-            <GameStation />
+            <ControllerLegend />
+            <PhoneScreen />
         </div>
     );
 };

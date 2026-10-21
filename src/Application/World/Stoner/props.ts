@@ -216,6 +216,18 @@ const emberMat = new THREE.MeshStandardMaterial({
 
 /* ----------------------------------------------------------------- objects */
 
+/**
+ * Click it and the camera comes over for a close look (DeskStash handles it).
+ * `dir` is the side to look from; by default, from the middle of the room.
+ * `group` makes several clickable parts count as one thing.
+ */
+export function inspectable<T extends THREE.Object3D>(obj: T, dir?: THREE.Vector3, group?: THREE.Object3D): T {
+    obj.userData.inspect = true;
+    if (dir) obj.userData.inspectDir = dir.clone().normalize();
+    if (group) obj.userData.inspectGroup = group;
+    return obj;
+}
+
 export function shadows<T extends THREE.Object3D>(obj: T, cast = true, receive = true): T {
     obj.traverse((child) => {
         if (child instanceof THREE.Mesh) {

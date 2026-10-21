@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import Application from '../../Application';
-import { canvasTexture, FLOOR_Y, mat, range, shadows } from './props';
+import { canvasTexture, FLOOR_Y, inspectable, mat, range, shadows } from './props';
 import { ROOM, WINDOW } from './Room';
 
 /**
@@ -324,7 +324,7 @@ export default class Outdoors {
         const plate = new THREE.Mesh(new THREE.PlaneGeometry(1600, 300), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
         plate.position.set(0, -800, 10);
         g.add(plate);
-        this.scene.add(shadows(g, true, false));
+        this.scene.add(inspectable(shadows(g, true, false), new THREE.Vector3(0, -0.1, 1)));
         this.drawReadout();
     }
 

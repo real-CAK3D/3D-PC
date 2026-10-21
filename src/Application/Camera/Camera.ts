@@ -32,6 +32,7 @@ export enum CameraKey {
     TV = 'tv',
     TV_SCREEN = 'tvScreen',
     STEREO = 'stereo',
+    INSPECT = 'inspect',
 }
 export default class Camera extends EventEmitter {
     application: Application;
@@ -78,10 +79,31 @@ export default class Camera extends EventEmitter {
             tv: new PanKeyframe(keys.tv),
             tvScreen: new CameraKeyframeInstance(keys.tvScreen),
             stereo: new CameraKeyframeInstance(keys.stereo),
+            inspect: new CameraKeyframeInstance(keys.inspect),
         };
+
+        // hold the right mouse button and drag to spin the room
+        let spinning = false;
+        let lastX = 0;
+        document.addEventListener('contextmenu', (event) => event.preventDefault());
+        document.addEventListener('mousedown', (event) => {
+            if (event.button !== 2) return;
+            spinning = true;
+            lastX = event.clientX;
+        });
+        document.addEventListener('mousemove', (event) => {
+            if (!spinning) return;
+            const idle = this.keyframes.idle as IdleKeyframe;
+            idle.spin -= (event.clientX - lastX) * 0.006;
+            lastX = event.clientX;
+        });
+        document.addEventListener('mouseup', (event) => {
+            if (event.button === 2) spinning = false;
+        });
 
         document.addEventListener('mousedown', (event) => {
             event.preventDefault();
+            if (event.button !== 0) return;
             // @ts-ignore
             if (event.target.id === 'prevent-click') return;
             // @ts-ignore

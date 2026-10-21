@@ -7,6 +7,7 @@ import {
     DESK_Y,
     FLOOR_Y,
     grinder,
+    inspectable,
     leafPath,
     lighter,
     mat,
@@ -262,7 +263,7 @@ export default class Room {
             new THREE.MeshStandardMaterial({ map: poster, roughness: 0.6 })
         );
         posterMesh.position.set(-7800, 2400, ROOM.back + 40);
-        this.scene.add(posterMesh);
+        this.scene.add(inspectable(posterMesh, new THREE.Vector3(0, 0, 1)));
 
         // Neon sign on the right wall
         const neon = canvasTexture(1024, 512, (ctx, w, h) => {
@@ -292,7 +293,7 @@ export default class Room {
         );
         sign.rotation.y = -Math.PI / 2;
         sign.position.set(ROOM.right - 50, 3000, 5200);
-        this.scene.add(sign);
+        this.scene.add(inspectable(sign, new THREE.Vector3(-1, 0, 0)));
 
         // Tie-dye rug under the coffee table
         const rug = canvasTexture(512, 512, (ctx, w, h) => {
@@ -325,12 +326,12 @@ export default class Room {
         const tray = ashtray('#2c2a33', 'blunt');
         tray.group.position.set(1480, DESK_Y, 1390);
         tray.group.rotation.y = 2.6;
-        this.scene.add(shadows(tray.group));
+        this.scene.add(inspectable(shadows(tray.group), new THREE.Vector3(0.2, 0.8, 1)));
         if (tray.smokePoint) this.smokePoints.push(tray.group.localToWorld(tray.smokePoint.clone()));
 
         const g = grinder('#7a3fd1');
         g.position.set(2180, DESK_Y, 1380);
-        this.scene.add(shadows(g));
+        this.scene.add(inspectable(shadows(g), new THREE.Vector3(0, 0.8, 1)));
 
         for (let i = 0; i < 5; i++) {
             const n = nug(range(1.8, 2.6) * CM);
@@ -344,7 +345,7 @@ export default class Room {
         const l = lighter('#3dff8a');
         l.position.set(2240, DESK_Y, 1050);
         l.rotation.y = 0.9;
-        this.scene.add(shadows(l));
+        this.scene.add(inspectable(shadows(l), new THREE.Vector3(0, 0.8, 1)));
     }
 
     /** A lava lamp that actually works: click it to switch it on/off, wax heats, rises, cools and sinks */
@@ -422,7 +423,7 @@ export default class Room {
         const light = new THREE.PointLight('#ff5bd1', 0.8, 5000, 1.6);
         light.position.y = 26 * s;
         group.add(light);
-        this.scene.add(shadows(group, true, false));
+        this.scene.add(inspectable(shadows(group, true, false), new THREE.Vector3(0.2, 0.2, 1)));
 
         this.lava = { on: true, power: 1, blobs, glassMat, waxMat, light, radiusAt, bottom: 13 * s, height: 26 * s, toggle };
         group.userData.onClick = () => {
@@ -517,6 +518,7 @@ export default class Room {
         this.scene.add(group);
 
         let on = true;
+        inspectable(frame, new THREE.Vector3(-0.6, -0.3, 1), group);
         frame.userData.onClick = () => {
             on = !on;
             diodes.visible = glow.visible = beam.visible = on;
@@ -544,7 +546,7 @@ export default class Room {
         const power = new THREE.Mesh(new THREE.CylinderGeometry(0.5 * CM, 0.5 * CM, 0.3 * CM, 12), mat.glow('#ff2a2a'));
         power.position.set(0, 0.95 * CM, -3 * CM);
         remote.add(power);
-        this.scene.add(shadows(remote));
+        this.scene.add(inspectable(shadows(remote), new THREE.Vector3(0, 1, 0.3)));
         remote.userData.onClick = () => {
             this.ledMode = (this.ledMode + 1) % LED_MODES.length;
             const mode = LED_MODES[this.ledMode];

@@ -16,6 +16,7 @@ import Smoke from './Stoner/Smoke';
 import Entertainment from './Stoner/Entertainment';
 import RoomExtras from './Stoner/RoomExtras';
 import Outdoors from './Stoner/Outdoors';
+import GameMode from './Stoner/GameMode';
 import { ROOM } from './Stoner/Room';
 import * as THREE from 'three';
 export default class World {
@@ -39,6 +40,7 @@ export default class World {
     entertainment: Entertainment;
     roomExtras: RoomExtras;
     outdoors: Outdoors;
+    gameMode: GameMode;
 
     constructor() {
         this.application = new Application();
@@ -64,6 +66,7 @@ export default class World {
         this.lounge = new Lounge();
         this.weedPlant = new WeedPlant();
         this.entertainment = new Entertainment();
+        this.gameMode = new GameMode(this.entertainment);
         this.roomExtras = new RoomExtras();
         this.outdoors = new Outdoors();
         this.deskStash = new DeskStash();
@@ -84,6 +87,7 @@ export default class World {
         if (this.entertainment) this.entertainment.update();
         if (this.roomExtras) this.roomExtras.update();
         if (this.outdoors) this.outdoors.update();
+        if (this.gameMode) this.gameMode.update();
         if (this.smoke) this.smoke.update();
         if (this.monitorScreen) this.monitorScreen.update();
         if (this.environment) this.environment.update();
