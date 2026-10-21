@@ -253,7 +253,7 @@ export default class RoomExtras {
             this.scene.add(inspectable(m, new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry))));
         };
 
-        // magazine-cover pin-up frame: shows static/textures/posters/pinup.jpg if you add one,
+        // magazine-cover pin-up frame: shows your own image if posters.json lists one,
         // otherwise a styled cover with venetian-blind light across it
         const cover = canvasTexture(500, 650, (ctx, w, h) => {
             const g = ctx.createLinearGradient(0, 0, w, h);
@@ -277,22 +277,25 @@ export default class RoomExtras {
             ctx.fillText('sessions', 24, h - 56);
         });
         const pinupMat = new THREE.MeshStandardMaterial({ map: cover, roughness: 0.5 });
-        new THREE.TextureLoader().load(
-            'textures/posters/pinup.jpg',
-            (tex) => {
-                tex.encoding = THREE.sRGBEncoding;
-                pinupMat.map = tex;
-                pinupMat.needsUpdate = true;
-            },
-            undefined,
-            () => {} // no custom poster yet: keep the cover
-        );
+        // a custom image listed in static/textures/posters/posters.json replaces the cover
+        fetch('textures/posters/posters.json')
+            .then((r) => r.json())
+            .then((custom: { pinup?: string | null }) => {
+                if (!custom.pinup) return;
+                new THREE.TextureLoader().load(custom.pinup, (tex) => {
+                    tex.encoding = THREE.sRGBEncoding;
+                    pinupMat.map = tex;
+                    pinupMat.needsUpdate = true;
+                });
+            })
+            .catch(() => {});
         const pinup = new THREE.Mesh(new THREE.PlaneGeometry(2400, 3120), pinupMat);
-        pinup.position.set(ROOM.right - 40, 2600, 9000);
+        pinup.position.set(ROOM.right - 60, 2600, 9000);
         pinup.rotation.y = -Math.PI / 2;
         this.scene.add(inspectable(pinup, new THREE.Vector3(-1, 0, 0)));
-        const frame = new THREE.Mesh(new THREE.BoxGeometry(60, 3240, 2520), mat.std('#c9a23a', 0.35, 0.8));
-        frame.position.set(ROOM.right - 10, 2600, 9000);
+        // the frame sits between the wall and the picture so their faces never touch
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(30, 3240, 2520), mat.std('#c9a23a', 0.35, 0.8));
+        frame.position.set(ROOM.right - 30, 2600, 9000);
         this.scene.add(frame);
 
         // good vibes, with a mushroom
@@ -329,7 +332,7 @@ export default class RoomExtras {
             }),
             2300,
             3200,
-            new THREE.Vector3(ROOM.left + 40, 2600, 1600),
+            new THREE.Vector3(ROOM.left + 60, 2600, 1600),
             Math.PI / 2
         );
 
@@ -370,7 +373,7 @@ export default class RoomExtras {
             }),
             1900,
             2700,
-            new THREE.Vector3(-2300, 2600, ROOM.front - 40),
+            new THREE.Vector3(-2300, 2600, ROOM.front - 60),
             Math.PI
         );
         poster(
@@ -404,7 +407,7 @@ export default class RoomExtras {
             }),
             1900,
             2700,
-            new THREE.Vector3(-12800, 2600, ROOM.front - 40),
+            new THREE.Vector3(-12800, 2600, ROOM.front - 60),
             Math.PI
         );
 
@@ -452,7 +455,7 @@ export default class RoomExtras {
             }),
             1900,
             3260,
-            new THREE.Vector3(-12000, 2600, ROOM.back + 40),
+            new THREE.Vector3(-12000, 2600, ROOM.back + 60),
             0
         );
     }

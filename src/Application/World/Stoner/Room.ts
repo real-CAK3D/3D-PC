@@ -208,13 +208,13 @@ export default class Room {
 
         const glowH = 2000;
         const backGlow = new THREE.Mesh(new THREE.PlaneGeometry(width, glowH), glowMat);
-        backGlow.position.set(ROOM.left + width / 2, y - glowH / 2, ROOM.back + 40);
+        backGlow.position.set(ROOM.left + width / 2, y - glowH / 2, ROOM.back + 20);
         const rightGlow = new THREE.Mesh(new THREE.PlaneGeometry(depth, glowH), glowMat);
         rightGlow.rotation.y = -Math.PI / 2;
-        rightGlow.position.set(ROOM.right - 40, y - glowH / 2, ROOM.back + depth / 2);
+        rightGlow.position.set(ROOM.right - 20, y - glowH / 2, ROOM.back + depth / 2);
         const leftGlow = new THREE.Mesh(new THREE.PlaneGeometry(depth, glowH), glowMat);
         leftGlow.rotation.y = Math.PI / 2;
-        leftGlow.position.set(ROOM.left + 40, y - glowH / 2, ROOM.back + depth / 2);
+        leftGlow.position.set(ROOM.left + 20, y - glowH / 2, ROOM.back + depth / 2);
         const leftStrip = new THREE.Mesh(new THREE.PlaneGeometry(depth, 70), strip);
         leftStrip.rotation.y = Math.PI / 2;
         leftStrip.position.set(ROOM.left + 50, y, ROOM.back + depth / 2);
@@ -262,7 +262,7 @@ export default class Room {
             new THREE.PlaneGeometry(2800, 4000),
             new THREE.MeshStandardMaterial({ map: poster, roughness: 0.6 })
         );
-        posterMesh.position.set(-7800, 2400, ROOM.back + 40);
+        posterMesh.position.set(-7800, 2400, ROOM.back + 60);
         this.scene.add(inspectable(posterMesh, new THREE.Vector3(0, 0, 1)));
 
         // Neon sign on the right wall
@@ -292,7 +292,7 @@ export default class Room {
             new THREE.MeshBasicMaterial({ map: neon, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
         );
         sign.rotation.y = -Math.PI / 2;
-        sign.position.set(ROOM.right - 50, 3000, 5200);
+        sign.position.set(ROOM.right - 60, 3000, 5200);
         this.scene.add(inspectable(sign, new THREE.Vector3(-1, 0, 0)));
 
         // Tie-dye rug under the coffee table

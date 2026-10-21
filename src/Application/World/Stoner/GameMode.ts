@@ -5,6 +5,7 @@ import { CameraKey } from '../../Camera/Camera';
 import UIEventBus from '../../UI/EventBus';
 import Entertainment from './Entertainment';
 import { FLOOR_Y, shadows } from './props';
+import { ButtonName, setButton } from './controller';
 
 // RetroPad button indices (what EmulatorJS's simulateInput takes)
 const PAD = { B: 0, Y: 1, SELECT: 2, START: 3, UP: 4, DOWN: 5, LEFT: 6, RIGHT: 7, A: 8, X: 9, L: 10, R: 11 };
@@ -59,6 +60,22 @@ const GAMEPAD: { [button: number]: number } = {
 // the same in every layout
 const COMMON: { [key: string]: number } = { f: PAD.SELECT, h: PAD.START, q: PAD.L, e: PAD.R };
 
+// which 3D button each RetroPad index presses
+const BUTTON_FOR: { [index: number]: ButtonName } = {
+    [PAD.UP]: 'up',
+    [PAD.DOWN]: 'down',
+    [PAD.LEFT]: 'left',
+    [PAD.RIGHT]: 'right',
+    [TRIANGLE]: 'triangle',
+    [CIRCLE]: 'circle',
+    [CROSS]: 'cross',
+    [SQUARE]: 'square',
+    [PAD.L]: 'l1',
+    [PAD.R]: 'r1',
+    [PAD.SELECT]: 'share',
+    [PAD.START]: 'options',
+};
+
 const ZOOM_EASE = BezierEasing(0.13, 0.99, 0, 1);
 const TABLE_SPOT = new THREE.Vector3(-8400, FLOOR_Y + 1400, 3300);
 
@@ -90,6 +107,16 @@ export default class GameMode {
         this.controller.userData.onClick = () => this.setOn(!this.on);
         this.scene.add(this.controller);
 
+        // the controller's own buttons can be clicked too (while you're holding it)
+        const buttons = this.controller.userData.buttons as { [name: string]: THREE.Mesh };
+        for (const indexStr in BUTTON_FOR) {
+            const index = Number(indexStr);
+            const mesh = buttons[BUTTON_FOR[index]];
+            mesh.userData.onClick = () => this.tap(index);
+        }
+        buttons.ps.userData.onClick = () => this.handleKey('g', true);
+        buttons.pad.userData.onClick = () => this.setOn(!this.on);
+
         UIEventBus.on('gameMode', (state: { on: boolean }) => this.setOn(state.on));
         document.addEventListener('keydown', (e) => this.onKey(e, true));
         document.addEventListener('keyup', (e) => this.onKey(e, false));
@@ -113,7 +140,8 @@ export default class GameMode {
             this.releaseAll();
             if (camera.currentKeyframe === CameraKey.TV_SCREEN) camera.transition(CameraKey.TV, 1200);
         }
-        // the emulator takes over the TV; putting the controller down brings the channel back
+        // the emulator takes over the TV (switching it on if needed); putting the controller down brings the channel back
+        if (on) this.entertainment.tvOn = true;
         this.entertainment.tv.showGame(on);
         if (!on) this.entertainment.tune(this.entertainment.channel);
         UIEventBus.dispatch('gameModeState', { on, layout: LAYOUTS[this.layout].name });
@@ -168,9 +196,18 @@ export default class GameMode {
         return true;
     }
 
+    /** A quick press-and-release, for clicks on the 3D buttons */
+    tap(index: number) {
+        if (!this.on) return this.setOn(true);
+        this.press(index, true);
+        window.setTimeout(() => this.press(index, false), 140);
+    }
+
     press(index: number, down: boolean, value = 1) {
         if (!!this.pressed[index] === down && value === 1) return;
         this.pressed[index] = down;
+        const buttons = this.controller.userData.buttons as { [name: string]: THREE.Mesh };
+        setButton(buttons[BUTTON_FOR[index]], down);
         const win = this.entertainment.tv.emulator.contentWindow as any;
         if (win && win.cak3dInput) win.cak3dInput(index, down ? value : 0);
     }
@@ -226,8 +263,20 @@ export default class GameMode {
         }
     }
 
+    stickTilt = { x: 0, y: 0 };
+
     stick(index: number, value: number) {
         this.pressed[index] = value > 0;
+        // tilt the left thumbstick to match
+        const v = value / 0x7fff;
+        if (index === STICK.RIGHT && v) this.stickTilt.x = v;
+        if (index === STICK.LEFT && v) this.stickTilt.x = -v;
+        if (index === STICK.DOWN && v) this.stickTilt.y = v;
+        if (index === STICK.UP && v) this.stickTilt.y = -v;
+        if ((index === STICK.RIGHT || index === STICK.LEFT) && !value && !this.pressed[index === STICK.RIGHT ? STICK.LEFT : STICK.RIGHT]) this.stickTilt.x = 0;
+        if ((index === STICK.DOWN || index === STICK.UP) && !value && !this.pressed[index === STICK.DOWN ? STICK.UP : STICK.DOWN]) this.stickTilt.y = 0;
+        const left = (this.controller.userData.sticks as THREE.Object3D[])[0];
+        left.rotation.set(this.stickTilt.y * 0.35, 0, -this.stickTilt.x * 0.35);
         const win = this.entertainment.tv.emulator.contentWindow as any;
         if (win && win.cak3dInput) win.cak3dInput(index, value);
     }

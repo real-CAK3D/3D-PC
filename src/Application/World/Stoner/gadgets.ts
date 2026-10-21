@@ -18,6 +18,8 @@ export function gadget(model: StashModel, item: StashItem): THREE.Group {
             return smartWatch(item);
         case 'stopwatch':
             return stopwatch(item);
+        case 'card':
+            return birthdayCard();
     }
 }
 
@@ -307,5 +309,64 @@ function stopwatch(item: StashItem) {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8 * CM, 0.15 * CM, 8, 24), metal);
     ring.position.y = R + 1.5 * CM;
     g.add(ring);
+    return g;
+}
+
+/** Zayne's birthday invite: a card, a bit open, with a big 14 on the front */
+function birthdayCard() {
+    const g = new THREE.Group();
+    const W = 10 * CM;
+    const H = 14 * CM;
+    const front = canvasTexture(256, 360, (ctx, w, h) => {
+        const bg = ctx.createLinearGradient(0, 0, w, h);
+        bg.addColorStop(0, '#3a0ca3');
+        bg.addColorStop(1, '#f72585');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, w, h);
+        // confetti
+        const colors = ['#ffd23d', '#5bff8a', '#4cc9f0', '#ffffff', '#ff8a3d'];
+        for (let i = 0; i < 90; i++) {
+            ctx.fillStyle = colors[i % colors.length];
+            ctx.save();
+            ctx.translate((i * 97) % w, (i * 53) % h);
+            ctx.rotate(i);
+            ctx.fillRect(-4, -2, 8, 4);
+            ctx.restore();
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 34px Arial, sans-serif';
+        ctx.fillText("YOU'RE INVITED", w / 2, 60);
+        ctx.font = 'bold 170px Impact, "Arial Black", sans-serif';
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = '#1b1510';
+        ctx.strokeText('14', w / 2, 230);
+        ctx.fillStyle = '#ffd23d';
+        ctx.fillText('14', w / 2, 230);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 38px Arial, sans-serif';
+        ctx.fillText("ZAYNE'S", w / 2, 290);
+        ctx.font = 'bold 30px Arial, sans-serif';
+        ctx.fillText('BIRTHDAY', w / 2, 326);
+    });
+    const paper = std('#fff8ee', 0.8);
+    const cover = new THREE.Mesh(new THREE.BoxGeometry(W, H, 0.12 * CM), [
+        paper,
+        paper,
+        paper,
+        paper,
+        new THREE.MeshStandardMaterial({ map: front, roughness: 0.5 }),
+        paper,
+    ]);
+    g.add(cover);
+    // the inside page peeking out behind the cover, plus an envelope
+    const inside = new THREE.Mesh(new THREE.BoxGeometry(W, H, 0.12 * CM), paper);
+    inside.position.set(0.6 * CM, -0.4 * CM, -0.25 * CM);
+    inside.rotation.z = -0.06;
+    g.add(inside);
+    const envelope = new THREE.Mesh(new THREE.BoxGeometry(W * 1.15, H * 0.8, 0.2 * CM), std('#ffd23d', 0.7));
+    envelope.position.set(1.4 * CM, -1.5 * CM, -0.6 * CM);
+    envelope.rotation.z = 0.12;
+    g.add(envelope);
     return g;
 }

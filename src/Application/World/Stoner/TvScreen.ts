@@ -37,7 +37,9 @@ export default class TvScreen {
     media: HTMLVideoElement | HTMLIFrameElement | null = null;
     youtube = false;
     timer: number | undefined;
-    loud = false;
+    loud = false; // at the couch
+    muted = false; // the remote's mute button
+    volume = 0.7;
     bannerUntil = 0;
 
     constructor(center: THREE.Vector3, width: number, height: number) {
@@ -131,7 +133,8 @@ export default class TvScreen {
             const v = document.createElement('video');
             v.autoplay = true;
             v.playsInline = true;
-            v.muted = !this.loud;
+            v.muted = !this.audible;
+            v.volume = this.volume;
             v.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000;';
             v.src = clip.url;
             v.addEventListener('loadedmetadata', () => {
@@ -145,7 +148,8 @@ export default class TvScreen {
             this.youtube = false;
         } else if (clip.id) {
             const f = document.createElement('iframe');
-            const params = `autoplay=1&mute=${this.loud ? 0 : 1}&start=${Math.floor(offset)}&controls=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
+            f.addEventListener('load', () => this.applySound());
+            const params = `autoplay=1&mute=${this.audible ? 0 : 1}&start=${Math.floor(offset)}&controls=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
             f.src = `https://www.youtube-nocookie.com/embed/${clip.id}?${params}`;
             f.allow = 'autoplay; encrypted-media';
             f.style.cssText = 'width:100%;height:100%;border:0;pointer-events:none;';
@@ -164,6 +168,27 @@ export default class TvScreen {
         window.setTimeout(() => {
             if (this.lowerThird.textContent === text) this.lowerThird.style.display = 'none';
         }, 12000);
+    }
+
+    /** A title card on the TV (no signal, setup help...) */
+    notice(title: string, lines: string[]) {
+        this.clear();
+        this.emulator.style.display = 'none';
+        this.setVisible(true);
+        const card = document.createElement('div');
+        card.style.cssText =
+            'width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#0b1020;color:#e8ecff;font:30px Arial,sans-serif;text-align:center;padding:60px;box-sizing:border-box;';
+        const h = document.createElement('div');
+        h.style.cssText = 'font:bold 56px Arial,sans-serif;color:#aa5cc3;';
+        h.textContent = title;
+        card.appendChild(h);
+        for (const line of lines) {
+            const p = document.createElement('div');
+            p.textContent = line;
+            if (line.startsWith('tailscale') || line.startsWith('http')) p.style.cssText = 'font:26px "Courier New",monospace;background:#000;padding:8px 14px;';
+            card.appendChild(p);
+        }
+        this.holder.appendChild(card);
     }
 
     banner(text: string) {
@@ -185,13 +210,38 @@ export default class TvScreen {
         }
     }
 
+    get audible() {
+        return this.loud && !this.muted && this.volume > 0;
+    }
+
     /** Sound only while you're at the couch */
     setLoud(loud: boolean) {
         if (loud === this.loud) return;
         this.loud = loud;
-        if (this.media instanceof HTMLVideoElement) this.media.muted = !loud;
-        else if (this.media && this.youtube && this.media.contentWindow) {
-            this.media.contentWindow.postMessage(JSON.stringify({ event: 'command', func: loud ? 'unMute' : 'mute', args: '' }), '*');
+        this.applySound();
+    }
+
+    setVolume(volume: number) {
+        this.volume = THREE.MathUtils.clamp(volume, 0, 1);
+        this.muted = false;
+        this.applySound();
+        this.banner(`VOL ${'▮'.repeat(Math.round(this.volume * 10)).padEnd(10, '▯')}`);
+    }
+
+    toggleMute() {
+        this.muted = !this.muted;
+        this.applySound();
+        this.banner(this.muted ? 'MUTE' : `VOL ${'▮'.repeat(Math.round(this.volume * 10)).padEnd(10, '▯')}`);
+    }
+
+    applySound() {
+        if (this.media instanceof HTMLVideoElement) {
+            this.media.muted = !this.audible;
+            this.media.volume = this.volume;
+        } else if (this.media && this.youtube && this.media.contentWindow) {
+            const send = (func: string, args: any = '') => (this.media as HTMLIFrameElement).contentWindow!.postMessage(JSON.stringify({ event: 'command', func, args }), '*');
+            send(this.audible ? 'unMute' : 'mute');
+            send('setVolume', [Math.round(this.volume * 100)]);
         }
     }
 

@@ -6,6 +6,7 @@ import { canvasTexture, CM, FLOOR_Y, mat, RoundedBoxGeometry, shadows, woodTextu
 import { papers } from './papers';
 import BezierEasing from 'bezier-easing';
 import TvScreen, { Clip, Media } from './TvScreen';
+import { buildController } from './controller';
 
 const ZOOM_EASE = BezierEasing(0.13, 0.99, 0, 1);
 
@@ -52,6 +53,9 @@ export default class Entertainment {
     screen: THREE.Mesh;
     tv: TvScreen;
     data: TvData = {};
+    tvOn = true;
+    digits = '';
+    digitTimer: number | undefined;
 
     constructor() {
         this.application = new Application();
@@ -71,6 +75,7 @@ export default class Entertainment {
         this.buildSpeakers();
         this.buildReceiver();
         this.buildPs5();
+        this.buildRemote();
 
         // the stereo follows the Spotify window on the PC
         window.addEventListener('message', (event) => {
@@ -120,27 +125,9 @@ export default class Entertainment {
         this.scene.add(shadows(group));
     }
 
-    /** DualSense-style controller (GameMode puts it on the coffee table) */
+    /** DualSense-style controller with real buttons (GameMode puts it on the coffee table) */
     static controller() {
-        const g = new THREE.Group();
-        const white = mat.std('#f2f2f4', 0.35);
-        const black = mat.std('#16161a', 0.4);
-        const body = new THREE.Mesh(new RoundedBoxGeometry(16 * CM, 3.2 * CM, 7 * CM, 3, 1.4 * CM), white);
-        body.position.y = 1.6 * CM;
-        g.add(body);
-        for (const sx of [-1, 1]) {
-            const grip = new THREE.Mesh(new RoundedBoxGeometry(4.5 * CM, 3 * CM, 8 * CM, 3, 1.4 * CM), black);
-            grip.position.set(sx * 6 * CM, 1.5 * CM, -2.5 * CM);
-            grip.rotation.y = sx * 0.3;
-            g.add(grip);
-        }
-        const pad = new THREE.Mesh(new THREE.BoxGeometry(6 * CM, 0.2 * CM, 3 * CM), black);
-        pad.position.set(0, 3.3 * CM, 1 * CM);
-        g.add(pad);
-        const glow = new THREE.Mesh(new THREE.BoxGeometry(6.4 * CM, 0.25 * CM, 0.3 * CM), mat.glow('#3d8bff'));
-        glow.position.set(0, 3.2 * CM, 2.6 * CM);
-        g.add(glow);
-        return g;
+        return buildController();
     }
 
     buildTv() {
@@ -187,7 +174,7 @@ export default class Entertainment {
                 this.application.camera.transition(CameraKey.TV_SCREEN, 1600, ZOOM_EASE);
                 return;
             }
-            this.tune((this.channel + 1) % this.channels.length);
+            this.setPower(true, this.tvOn ? (this.channel + 1) % this.channels.length : this.channel);
         });
     }
 
@@ -519,11 +506,117 @@ export default class Entertainment {
         ];
     }
 
+    /** TV remote on the coffee table: every button is its own clickable key */
+    buildRemote() {
+        const g = new THREE.Group();
+        g.position.set(-8100, FLOOR_Y + 1400, 2850);
+        g.rotation.y = 1.4;
+        const body = new THREE.Mesh(new RoundedBoxGeometry(5 * CM, 1.6 * CM, 20 * CM, 2, 0.6 * CM), mat.std('#1a1a1e', 0.45));
+        body.position.y = 0.8 * CM;
+        g.add(body);
+        const top = 1.6 * CM;
+
+        const label = (text: string, bg: string) =>
+            canvasTexture(64, 64, (ctx, w, h) => {
+                ctx.fillStyle = bg;
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = `bold ${text.length > 2 ? 18 : 30}px Arial, sans-serif`;
+                ctx.fillText(text, w / 2, h / 2 + 2);
+            });
+        const button = (text: string, x: number, z: number, onPress: () => void, bg = '#3a3a42', w = 1.3, d = 1.1) => {
+            const side = mat.std(bg, 0.5);
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w * CM, 0.5 * CM, d * CM), [
+                side,
+                side,
+                new THREE.MeshStandardMaterial({ map: label(text, bg), roughness: 0.5 }),
+                side,
+                side,
+                side,
+            ]);
+            m.position.set(x * CM, top + 0.1 * CM, z * CM);
+            g.add(m);
+            this.clickable(m, () => {
+                // a little press
+                m.position.y = top - 0.05 * CM;
+                window.setTimeout(() => (m.position.y = top + 0.1 * CM), 120);
+                onPress();
+            });
+        };
+
+        button('⏻', -1.3, -8, () => this.setPower(!this.tvOn), '#b3202c');
+        button('INPUT', 1.3, -8, () => this.cycleInput(), '#3a3a42', 1.8);
+        [1, 2, 3, 4, 5, 6, 7, 8, 9].forEach((n, i) => button(String(n), ((i % 3) - 1) * 1.5, -5.6 + Math.floor(i / 3) * 1.5, () => this.digit(n)));
+        button('MUTE', -1.5, -1.1, () => this.tv.toggleMute(), '#3a3a42', 1.4);
+        button('0', 0, -1.1, () => this.digit(0));
+        button('VOL+', -1.3, 1.6, () => this.tv.setVolume(this.tv.volume + 0.1), '#2a4a8a', 1.8, 1.6);
+        button('VOL-', -1.3, 3.6, () => this.tv.setVolume(this.tv.volume - 0.1), '#2a4a8a', 1.8, 1.6);
+        button('CH▲', 1.3, 1.6, () => this.setPower(true, (this.channel + 1) % this.channels.length), '#2a6a3a', 1.8, 1.6);
+        button('CH▼', 1.3, 3.6, () => this.setPower(true, (this.channel - 1 + this.channels.length) % this.channels.length), '#2a6a3a', 1.8, 1.6);
+        this.scene.add(shadows(g));
+    }
+
+    setPower(on: boolean, channel = this.channel) {
+        this.tvOn = on;
+        if (on) this.tune(channel);
+        else {
+            this.tv.clear();
+            UIEventBus.dispatch('gameMode', { on: false });
+        }
+    }
+
+    /** Number keys: type a channel number (e.g. 1 then 2 for CH 12) */
+    digit(n: number) {
+        this.digits = (this.digits + n).slice(-2);
+        this.tv.banner(`CH ${this.digits}-`);
+        window.clearTimeout(this.digitTimer);
+        this.digitTimer = window.setTimeout(() => {
+            const index = Number(this.digits) - 2;
+            this.digits = '';
+            if (index >= 0 && index < this.channels.length) this.setPower(true, index);
+        }, 1200);
+    }
+
+    /** INPUT cycles TV -> PS5 -> Jellyfin -> TV */
+    cycleInput() {
+        const game = this.application.world.gameMode;
+        const jelly = this.channels.findIndex((c) => c.name === 'JELLYFIN');
+        if (game && game.on) {
+            game.setOn(false);
+            this.setPower(true, jelly);
+        } else if (this.channel === jelly) {
+            this.setPower(true, 2);
+        } else if (game) {
+            this.tvOn = true;
+            game.setOn(true);
+        }
+    }
+
     /** Switch to channel `i`: draw it, or hand it to the browser layer */
     tune(i: number) {
         this.channel = i;
+        if (!this.tvOn) return;
         const ch = this.channels[i];
-        if (ch.media) {
+        if (ch.name === 'JELLYFIN') {
+            // only worth framing if the server answers; otherwise say how to share it
+            this.tv.notice('JELLYFIN', ['Tuning in...']);
+            this.tv.banner(`CH ${i + 2}  ${ch.name}`);
+            fetch(new URL('../System/Info/Public', JELLYFIN_URL).toString(), { mode: 'no-cors' })
+                .then(() => {
+                    if (this.channel === i && ch.media) this.tv.play(ch.media());
+                })
+                .catch(() => {
+                    if (this.channel !== i) return;
+                    this.tv.notice('JELLYFIN · NO SIGNAL', [
+                        "Can't reach the nukebox's Jellyfin.",
+                        'It only works on your Tailscale network, shared over HTTPS:',
+                        'tailscale serve --bg --https=8096 http://127.0.0.1:8096',
+                        JELLYFIN_URL,
+                    ]);
+                });
+        } else if (ch.media) {
             this.tv.play(ch.media());
             this.tv.banner(`CH ${i + 2}  ${ch.name}`);
         } else {
@@ -589,7 +682,10 @@ export default class Entertainment {
             const { width: w, height: h } = this.screenCanvas;
             const ch = this.channels[this.channel];
             ctx.save();
-            if (ch.draw) ch.draw(ctx, w, h, t);
+            if (!this.tvOn) {
+                ctx.fillStyle = '#050506';
+                ctx.fillRect(0, 0, w, h);
+            } else if (ch.draw) ch.draw(ctx, w, h, t);
             ctx.restore();
             if (this.banner > 0) {
                 ctx.fillStyle = 'rgba(0,0,0,0.6)';

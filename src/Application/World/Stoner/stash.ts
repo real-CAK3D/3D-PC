@@ -3,7 +3,7 @@
  * anything without one is a floppy disk. Picking something from a drawer
  * loads it on the PC (floppies get inserted into the drive first).
  */
-export type StashModel = 'pi' | 'cyd' | 'gameboy' | 'watch' | 'stopwatch';
+export type StashModel = 'pi' | 'cyd' | 'gameboy' | 'watch' | 'stopwatch' | 'card';
 
 export type StashItem = {
     name: string;
@@ -45,7 +45,7 @@ export const sites: StashItem[] = [
     { name: 'CAK3D Crawler', url: 'https://cak3d-crawler.vercel.app', repo: gh('CAK3D-Crawler'), color: '#ff5bd1' },
     { name: "Ibby's Automotive", description: "Ibby's Automotive Service", url: 'https://ibbyauto.github.io/', repo: gh('IbbyAuto.github.io'), color: '#ff9b3d' },
     { name: 'Map-Pi', url: 'https://map-pi-zeta.vercel.app', repo: gh('Map-Pi-E'), color: '#3ad1c4' },
-    { name: "Zayne's Birthday", url: 'https://zaynes-birthday.vercel.app', repo: gh('ZaynesBirthday'), color: '#ffd23d' },
+    { name: "Zayne's 14th", description: "You're invited! Zayne's turning 14.", url: 'https://zaynes-birthday.vercel.app', repo: gh('ZaynesBirthday'), model: 'card' },
 ];
 
 /** The paper stacks on the desk */
