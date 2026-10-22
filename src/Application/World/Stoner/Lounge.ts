@@ -237,9 +237,10 @@ export default class Lounge {
             [1950, 300],
             [1200, -650],
             [-2000, 750],
-            [150, 820],
+            [-1100, 880], // well clear of the tipped bottle at (700, 700) and the blunt at (-500, 650)
         ];
-        cans.forEach(([bg, fg, t, s, tipped], i) => place(can(bg, fg, t, s, tipped), canSpots[i][0], canSpots[i][1]));
+        // tipped cans lie along the table too, so they can't roll into their neighbours
+        cans.forEach(([bg, fg, t, s, tipped], i) => place(can(bg, fg, t, s, tipped), canSpots[i][0], canSpots[i][1], tipped ? -0.1 : rangeAngle()));
         // the knocked over ones on the rug
         const floorCan = can('#2bb85a', '#ffffff', 'DANK DEW', 'citrus', true);
         floorCan.position.set(top.x - 2800, FLOOR_Y + 10, top.z + 1400);
@@ -251,8 +252,8 @@ export default class Lounge {
             ['#4a2a0a', '#c43d3d', '#ffffff', 'MUNCHIES', true],
         ];
         const bottleSpots = [
-            [-2050, -650],
-            [-1750, -800],
+            [-2100, -780],
+            [-1550, -820],
             [700, 700],
         ];
         // tipped bottles lie along the table (ry 0) so they can't hang off the edge
