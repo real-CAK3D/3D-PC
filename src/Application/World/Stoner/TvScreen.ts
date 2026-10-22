@@ -184,9 +184,15 @@ export default class TvScreen {
         h.textContent = title;
         card.appendChild(h);
         for (const line of lines) {
-            const p = document.createElement('div');
+            // links can be clicked (the TV is a real browser layer)
+            const p = document.createElement(line.startsWith('http') ? 'a' : 'div');
+            if (p instanceof HTMLAnchorElement) {
+                p.href = line;
+                p.target = '_blank';
+                p.rel = 'noopener';
+            }
             p.textContent = line;
-            if (line.startsWith('tailscale') || line.startsWith('http')) p.style.cssText = 'font:26px "Courier New",monospace;background:#000;padding:8px 14px;';
+            if (line.startsWith('tailscale') || line.startsWith('http')) p.style.cssText = 'font:26px "Courier New",monospace;background:#000;padding:8px 14px;color:#5bd1ff;';
             card.appendChild(p);
         }
         this.holder.appendChild(card);

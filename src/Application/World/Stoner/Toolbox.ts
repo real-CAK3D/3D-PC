@@ -48,8 +48,9 @@ export default class Toolbox {
 
     buildBox() {
         const g = new THREE.Group();
-        g.position.set(4200, FLOOR_Y, ROOM.front - 700);
-        g.rotation.y = Math.PI + 0.25; // front faces into the room
+        // lengthwise against the right wall, clear of the boots, its front facing into the room
+        g.position.set(ROOM.right - 520, FLOOR_Y, ROOM.front - 1500);
+        g.rotation.y = -Math.PI / 2 + 0.15;
         const red = mat.std('#b3201c', 0.35, 0.4);
         const steel = mat.std('#c9ccd2', 0.3, 0.85);
         const W = 56 * CM;
@@ -101,14 +102,13 @@ export default class Toolbox {
         const top = new THREE.Mesh(new RoundedBoxGeometry(W + 1 * CM, 3 * CM, D + 1 * CM, 2, 0.8 * CM), red);
         top.position.set(0, 1.5 * CM, D / 2);
         const handle = new THREE.Mesh(new THREE.TorusGeometry(8 * CM, 0.8 * CM, 8, 24, Math.PI), mat.std('#111114', 0.5));
-        handle.rotation.x = -Math.PI / 2;
-        handle.rotation.z = Math.PI / 2;
+        // a half ring already stands up in its own x/y plane: an arch along the lid, like a real carry handle
         handle.position.set(0, 3 * CM, D / 2);
         this.lid.add(top, handle);
         g.add(this.lid);
 
         this.scene.add(shadows(g));
-        inspectable(g, new THREE.Vector3(0.1, 0.9, -0.6));
+        inspectable(g, new THREE.Vector3(-0.7, 0.9, -0.2));
         g.userData.onClick = () => (this.open = !this.open);
     }
 

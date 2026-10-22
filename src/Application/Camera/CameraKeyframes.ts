@@ -55,12 +55,12 @@ export const keys: { [key in CameraKey]: CameraKeyframe } = {
     },
     // up close on the TV screen
     tvScreen: {
-        position: new THREE.Vector3(-7800, -200, 5300),
+        position: new THREE.Vector3(-7800, -200, 4100),
         focalPoint: new THREE.Vector3(-7800, -200, 10000),
     },
     // leaning in on the stereo receiver under the TV
     stereo: {
-        position: new THREE.Vector3(-7200, -1700, 7300),
+        position: new THREE.Vector3(-7200, -1500, 6300),
         focalPoint: new THREE.Vector3(-7200, -2450, 10200),
     },
     // up close on whatever was clicked (re-aimed by DeskStash each time)

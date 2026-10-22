@@ -456,6 +456,14 @@ export default class DeskStash {
         const view = camera.currentKeyframe || camera.targetKeyframe;
         if (view !== CameraKey.INSPECT && view) this.beforeInspect = view as CameraKey;
         this.inspecting = obj;
+        // some things pick their own spot (the laptop squares up on its screen)
+        if (obj.userData.inspectView) {
+            const v = obj.userData.inspectView() as { position: THREE.Vector3; focalPoint: THREE.Vector3 };
+            keys.inspect.position.copy(v.position);
+            keys.inspect.focalPoint.copy(v.focalPoint);
+            camera.transition(CameraKey.INSPECT, 1500, ZOOM_EASE);
+            return;
+        }
         const box = new THREE.Box3().setFromObject(obj);
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
@@ -468,9 +476,15 @@ export default class DeskStash {
             dir.y = 0.25;
             dir.normalize();
         }
-        const distance = Math.max(size.x, size.y, size.z) * 2.2 + 700;
+        // stand back far enough to see it with some of the room around it
+        const distance = Math.max(2600, Math.max(size.x, size.y, size.z) * 2.8 + 1800);
         keys.inspect.focalPoint.copy(center);
         keys.inspect.position.copy(center).addScaledVector(dir, distance);
+        // ...but never through a wall (the room's inside, less a margin)
+        const p = keys.inspect.position;
+        p.x = THREE.MathUtils.clamp(p.x, -14000, 5200);
+        p.z = THREE.MathUtils.clamp(p.z, -1100, 10500);
+        p.y = Math.min(p.y, 5600);
         camera.transition(CameraKey.INSPECT, 1500, ZOOM_EASE);
     }
 

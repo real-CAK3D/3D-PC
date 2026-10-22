@@ -121,6 +121,19 @@ export default class GameMode {
         document.addEventListener('keydown', (e) => this.onKey(e, true));
         document.addEventListener('keyup', (e) => this.onKey(e, false));
         document.addEventListener('mousemove', (e) => this.onMouse(e));
+        // the wheel and touch drags scroll the game library (the TV sits under the 3D scene, so they land here)
+        document.addEventListener('wheel', (e) => this.scrollLibrary(e.deltaY), { passive: true });
+        let touchY: number | null = null;
+        document.addEventListener('touchstart', (e) => (touchY = e.touches[0] ? e.touches[0].clientY : null), { passive: true });
+        document.addEventListener(
+            'touchmove',
+            (e) => {
+                if (touchY === null || !e.touches[0]) return;
+                this.scrollLibrary((touchY - e.touches[0].clientY) * 2);
+                touchY = e.touches[0].clientY;
+            },
+            { passive: true }
+        );
         // keys and clicks while the TV frame has focus
         window.addEventListener('message', (event) => {
             const d = event.data;
@@ -194,6 +207,12 @@ export default class GameMode {
         if (index === undefined) return false;
         this.press(index, down);
         return true;
+    }
+
+    scrollLibrary(dy: number) {
+        if (!this.on) return;
+        const win = this.entertainment.tv.emulator.contentWindow as any;
+        if (win && win.cak3dScroll) win.cak3dScroll(dy);
     }
 
     /** A quick press-and-release, for clicks on the 3D buttons */

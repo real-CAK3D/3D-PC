@@ -28,6 +28,7 @@ export const phoneApps: PhoneApp[] = [
     { name: 'MyPetID', kind: 'web', color: '#3d6aff', icon: '🐶', url: 'https://mypetid.vercel.app/', repo: 'https://github.com/MyPetID-Home/MyPetID-Home.github.io' },
     { name: 'CAK3D Creations', kind: 'web', color: '#5bd16a', icon: '🌿', url: 'https://cak3d-creations.vercel.app', repo: gh('CAK3D-Creations') },
     { name: 'real-cak3d', kind: 'web', color: '#b04dff', icon: '꧁', url: 'https://real-cak3d.github.io/', repo: gh('real-CAK3D.github.io') },
+    { name: 'TheRealZayne', kind: 'web', color: '#3dd6ff', icon: '🎧', url: 'https://the-realzayne.github.io/', repo: 'https://github.com/the-RealZayne/the-RealZayne.github.io', note: 'Gamer, music producer, creator' },
     { name: "Zayne's B-day", kind: 'web', color: '#ffd23d', icon: '🎂', url: 'https://zaynes-birthday.vercel.app', repo: gh('ZaynesBirthday') },
     { name: 'Corner Chronicle', kind: 'web', color: '#e07a24', icon: '📰', url: 'https://terminal-vnic.tailac984b.ts.net:8444/', repo: gh('NewsStand'), note: 'Tailscale only' },
 ];

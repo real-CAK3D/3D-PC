@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#1b0f33" />
+    <title>CAK3D OS X</title>
+    <link rel="icon" href="../images/favicon-32x32.png" />
+    <link rel="stylesheet" href="css/apps.css" />
+    <link rel="stylesheet" href="css/shell.css" />
+</head>
+<body>
+    <!-- Lock screen -->
+    <div id="lock" class="wall-haze" role="dialog" aria-modal="true" aria-label="Lock screen">
+        <div class="shade"></div>
+        <div class="lock-date" id="lockDate"></div>
+        <div class="lock-time" id="lockTime" aria-live="off"></div>
+        <div class="signin">
+            <div class="avatar" id="lockAvatar"></div>
+            <div class="who">CAK3D</div>
+            <button class="enter glass" id="unlockBtn" type="button">Enter Garden <span class="arrow" aria-hidden="true">➜</span></button>
+            <div class="hint">Click, tap or press any key to sign in</div>
+        </div>
+        <div class="brandline"><span class="logo" id="lockLogo"></span>CAK3D OS X Sonoma Haze</div>
+    </div>
+
+    <!-- Menu bar -->
+    <header id="menubar" role="menubar" aria-label="Menu bar">
+        <button class="mb-btn" id="leafBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="CAK3D menu"></button>
+        <button class="mb-btn" id="appName" type="button" aria-haspopup="menu" aria-expanded="false">Finder</button>
+        <nav id="appMenus" aria-label="App menus"></nav>
+        <div class="mb-right">
+            <button class="mb-btn" id="npChip" type="button" hidden aria-label="Now playing on CAK3D FM"></button>
+            <span class="mb-btn battery mb-hide-sm" id="battery" aria-label="Battery"><span id="battPct">100%</span><i><b id="battFill" style="width:100%"></b></i></span>
+            <button class="mb-btn" id="wifiBtn" type="button" aria-label="Wi-Fi"></button>
+            <button class="mb-btn" id="spotBtn" type="button" aria-label="Spotlight search (Ctrl+Space)"></button>
+            <button class="mb-btn" id="ccBtn" type="button" aria-label="Control Center" aria-expanded="false"></button>
+            <button class="mb-btn" id="clockBtn" type="button" aria-label="Notification Center" aria-expanded="false"></button>
+        </div>
+    </header>
+
+    <!-- Desktop -->
+    <main id="desktop" class="wall-haze" aria-label="Desktop">
+        <div id="icons" role="list" aria-label="Desktop items"></div>
+        <div id="windows"></div>
+    </main>
+
+    <!-- Dock -->
+    <nav id="dock" class="glass mag" aria-label="Dock"></nav>
+
+    <!-- Launchpad -->
+    <div id="launchpad" class="hide" role="dialog" aria-label="Launchpad" hidden>
+        <input id="lpSearch" type="search" placeholder="Search" aria-label="Search apps" autocomplete="off" />
+        <div class="lp-grid" id="lpGrid"></div>
+    </div>
+
+    <!-- Spotlight -->
+    <div id="spotlight" class="glass" role="dialog" aria-label="Spotlight" hidden>
+        <div class="sl-in"><span class="ic" id="slIcon"></span><input id="slInput" type="text" placeholder="Spotlight Search" aria-label="Spotlight search" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="slRes" /></div>
+        <div class="sl-res" id="slRes" role="listbox" aria-label="Results"></div>
+    </div>
+
+    <!-- Control Center -->
+    <div id="cc" class="panel glass" role="dialog" aria-label="Control Center" hidden></div>
+    <!-- Notification Center -->
+    <div id="nc" class="panel glass" role="dialog" aria-label="Notification Center" hidden></div>
+
+    <div id="toast" class="glass" role="status" aria-live="polite" hidden></div>
+    <div id="live" class="sr-only" aria-live="polite"></div>
+
+    <script src="js/data.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/shell.js"></script>
+    <script src="js/apps.js"></script>
+    <script src="js/tv.js"></script>
+    <script src="js/terminal.js"></script>
+    <script>CAK3D.boot();</script>
+</body>
+</html>

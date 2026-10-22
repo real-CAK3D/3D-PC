@@ -20,6 +20,7 @@ import GameMode from './Stoner/GameMode';
 import DeskInputs from './Stoner/DeskInputs';
 import GamingChair from './Stoner/GamingChair';
 import Toolbox from './Stoner/Toolbox';
+import Laptop from './Stoner/Laptop';
 import { ROOM } from './Stoner/Room';
 import * as THREE from 'three';
 export default class World {
@@ -47,6 +48,7 @@ export default class World {
     deskInputs: DeskInputs;
     gamingChair: GamingChair;
     toolbox: Toolbox;
+    laptop: Laptop;
 
     constructor() {
         this.application = new Application();
@@ -74,6 +76,7 @@ export default class World {
         this.gamingChair = new GamingChair();
         this.entertainment = new Entertainment();
         this.gameMode = new GameMode(this.entertainment);
+        this.laptop = new Laptop(this.entertainment);
         this.roomExtras = new RoomExtras();
         this.toolbox = new Toolbox();
         this.outdoors = new Outdoors();
@@ -100,6 +103,7 @@ export default class World {
         if (this.deskInputs) this.deskInputs.update();
         if (this.gamingChair) this.gamingChair.update();
         if (this.toolbox) this.toolbox.update();
+        if (this.laptop) this.laptop.update();
         if (this.smoke) this.smoke.update();
         if (this.monitorScreen) this.monitorScreen.update();
         if (this.environment) this.environment.update();

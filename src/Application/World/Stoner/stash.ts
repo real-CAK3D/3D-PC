@@ -46,6 +46,7 @@ export const sites: StashItem[] = [
     { name: 'IbbyAutoWorks', description: 'Mobile Auto Service', url: 'https://ibbyautoworks.github.io/', repo: 'https://github.com/IbbyAutoWorks/IbbyAutoWorks.github.io', color: '#ff9b3d' },
     { name: 'Map-Pi', url: 'https://map-pi-zeta.vercel.app', repo: gh('Map-Pi-E'), color: '#3ad1c4' },
     { name: "Zayne's 14th", description: "You're invited! Zayne's turning 14.", url: 'https://zaynes-birthday.vercel.app', repo: gh('ZaynesBirthday'), model: 'card' },
+    { name: 'TheRealZayne', description: 'Gamer, music producer, content creator, and outdoor enthusiast.', url: 'https://the-realzayne.github.io/', repo: 'https://github.com/the-RealZayne/the-RealZayne.github.io', color: '#3dd6ff' },
 ];
 
 /** The paper stacks on the desk */
