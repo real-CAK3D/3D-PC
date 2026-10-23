@@ -17,6 +17,7 @@ import {
     shake,
     RoundedBoxGeometry,
 } from './props';
+import { menu } from './ContextMenu';
 
 // Room bounds: the desk sits in the back-right corner
 export const ROOM = {
@@ -429,6 +430,11 @@ export default class Room {
         group.userData.onClick = () => {
             if (this.lava) this.lava.on = !this.lava.on;
         };
+        group.userData.menuTitle = 'Lava lamp';
+        menu(group, () => [
+            { label: this.lava && this.lava.on ? 'Switch it off' : 'Switch it on', run: () => this.lava && (this.lava.on = !this.lava.on) },
+            { label: 'Stare into it', say: ['The blobs are talking to you.', 'Twenty minutes pass. Worth it.'] },
+        ]);
     }
 
     /** Multi-spectrum LED grow panel hanging over the plant; click to switch it */
@@ -484,7 +490,8 @@ export default class Room {
         group.add(glow);
         const beamH = y - FLOOR_Y - 80; // all the way down to the floor
         const beam = new THREE.Mesh(
-            new THREE.CylinderGeometry(W * 0.42, W * 0.7, beamH, 32, 1, true),
+            // flares only a little: the plant stands ~1550 from the back wall and the beam must stay inside
+            new THREE.CylinderGeometry(W * 0.4, W * 0.48, beamH, 32, 1, true),
             new THREE.MeshBasicMaterial({
                 color: '#ff4ddb',
                 transparent: true,
@@ -524,6 +531,11 @@ export default class Room {
             diodes.visible = glow.visible = beam.visible = on;
             spot.intensity = on ? 1.6 : 0;
         };
+        frame.userData.menuTitle = 'Grow light';
+        menu(frame, () => [
+            { label: on ? 'Lights out (flower mode)' : 'Lights on', run: () => frame.userData.onClick() },
+            { label: 'Check the timer', say: ['18/6. Vegging hard.', '12/12. Flower time.'] },
+        ]);
     }
 
     /** RGB remote on the coffee table: click to cycle the LED strip colors */
@@ -552,6 +564,16 @@ export default class Room {
             const mode = LED_MODES[this.ledMode];
             if (mode !== 'rainbow') this.setLedColor(new THREE.Color(mode));
         };
+        remote.userData.menuTitle = 'LED remote';
+        menu(remote, () =>
+            LED_MODES.map((mode, i) => ({
+                label: mode === 'rainbow' ? 'Rainbow' : `Color ${i + 1}`,
+                run: () => {
+                    this.ledMode = i;
+                    if (mode !== 'rainbow') this.setLedColor(new THREE.Color(mode));
+                },
+            }))
+        );
     }
 
     setLedColor(color: THREE.Color) {

@@ -5,7 +5,6 @@ import {
     bong,
     bottle,
     can,
-    canvasTexture,
     mat,
     CM,
     fabricTexture,
@@ -22,11 +21,10 @@ import {
     stashJar,
     woodTexture,
 } from './props';
+import { menu, MenuItem } from './ContextMenu';
 import { ROOM } from './Room';
 import { CameraKey } from '../../Camera/Camera';
 import { TV_VIEWS } from './Entertainment';
-import { phoneApps } from './phoneApps';
-import UIEventBus from '../../UI/EventBus';
 
 const COUCH = { x: -7800, z: ROOM.back + 1650, width: 7200, depth: 3000 };
 const TABLE = { x: -7800, z: 3500, width: 4400, depth: 2100, height: 1400 };
@@ -36,6 +34,7 @@ export default class Lounge {
     application: Application;
     scene: THREE.Scene;
     smokePoints: THREE.Vector3[] = [];
+    phoneSpot: THREE.Object3D;
 
     constructor() {
         this.application = new Application();
@@ -104,46 +103,23 @@ export default class Lounge {
         group.userData.focus = CameraKey.TV;
         group.userData.focusViews = TV_VIEWS;
         group.userData.onClick = () => {};
+        group.userData.menuTitle = 'Couch';
+        menu(group, [
+            { label: 'Sit down', run: () => this.application.camera.transition(CameraKey.TV, 2000) },
+            {
+                label: 'Check under the cushions',
+                say: ['A lighter! It works, too.', '$3.50 and a gummy of unknown age.', 'The TV remote you lost in 2023.', 'Crumbs. So many crumbs.', 'A Pokémon card. Holo!'],
+            },
+            { label: 'Take a nap', say: ['Five more minutes...', 'Couch lock achieved.'] },
+        ]);
     }
 
-    /** Android phone lying on the couch's right arm: look at it, then pick it up */
+    /** Where the phone lies on the couch's right arm (Phone builds the Galaxy Z Fold there) */
     setPhone(couch: THREE.Group, W: number, armW: number, armTop: number) {
-        const tex = canvasTexture(180, 380, (ctx, w, h) => {
-            const g = ctx.createLinearGradient(0, 0, w, h);
-            g.addColorStop(0, '#2a0f45');
-            g.addColorStop(1, '#0d1f12');
-            ctx.fillStyle = g;
-            ctx.fillRect(0, 0, w, h);
-            ctx.fillStyle = '#fff';
-            ctx.textAlign = 'center';
-            ctx.font = '300 44px Arial, sans-serif';
-            const now = new Date();
-            ctx.fillText(`${now.getHours() % 12 || 12}:${String(now.getMinutes()).padStart(2, '0')}`, w / 2, 80);
-            phoneApps.slice(0, 12).forEach((a, i) => {
-                ctx.fillStyle = a.color;
-                const x = 22 + (i % 4) * 38;
-                const y = 140 + Math.floor(i / 4) * 52;
-                ctx.beginPath();
-                ctx.arc(x + 12, y, 15, 0, Math.PI * 2);
-                ctx.fill();
-            });
-            ctx.fillStyle = 'rgba(255,255,255,0.5)';
-            ctx.fillRect(w / 2 - 30, h - 16, 60, 4);
-        });
-        const body = mat.std('#121216', 0.3, 0.5);
-        const phone = new THREE.Mesh(new RoundedBoxGeometry(7.5 * CM, 0.85 * CM, 16 * CM, 2, 0.4 * CM), body);
-        const screen = new THREE.Mesh(
-            new THREE.PlaneGeometry(7 * CM, 15.4 * CM),
-            new THREE.MeshBasicMaterial({ map: tex })
-        );
-        screen.rotation.x = -Math.PI / 2;
-        screen.position.y = 0.44 * CM;
-        phone.add(screen);
-        phone.position.set(W / 2 - armW / 2, armTop + 0.45 * CM, 200);
-        phone.rotation.y = 0.35;
-        couch.add(phone);
-        inspectable(phone, new THREE.Vector3(0.1, 1, -0.35));
-        phone.userData.onClick = () => UIEventBus.dispatch('openPhone', {});
+        this.phoneSpot = new THREE.Object3D();
+        this.phoneSpot.position.set(W / 2 - armW / 2, armTop, 200);
+        this.phoneSpot.rotation.y = 0.35;
+        couch.add(this.phoneSpot);
     }
 
     setTable(): THREE.Vector3 {
@@ -185,20 +161,33 @@ export default class Lounge {
     }
 
     setTableClutter(top: THREE.Vector3) {
-        const place = (obj: THREE.Object3D, dx: number, dz: number, ry = rangeAngle()) => {
+        const place = (obj: THREE.Object3D, dx: number, dz: number, ry = rangeAngle(), title = '', items?: MenuItem[]) => {
             obj.position.x += top.x + dx;
             obj.position.y += top.y;
             obj.position.z += top.z + dz;
             obj.rotation.y = ry;
             this.scene.add(inspectable(shadows(obj), new THREE.Vector3(0.1, 1, -0.6)));
+            if (items) {
+                obj.userData.menuTitle = title;
+                menu(obj, items);
+            }
             return obj;
         };
+        const ASHTRAY: MenuItem[] = [
+            { label: 'Ash it', say: ['Tap tap.', 'Perfect ash. Long, grey, intact.'] },
+            { label: 'Empty it', say: ['Later.', 'You move it two inches. Basically cleaning.'] },
+        ];
+        const DRINK = (name: string): MenuItem[] => [
+            { label: 'Take a sip', say: [`${name}. Warm and flat, as expected.`, 'Is this one yours? It is now.', 'Mostly ash. Do not drink.'] },
+            { label: 'Shake it', say: ['Still something in there.', 'Empty.'] },
+            { label: 'Read the label', say: [`${name}: part of a balanced snack.`, `${name}. 100% of your daily vibes.`] },
+        ];
 
         // two ashtrays, one with a blunt going and one with a joint
         const a1 = ashtray('#3a3a48', 'blunt');
-        place(a1.group, -1400, -300, 0.4);
+        place(a1.group, -1400, -300, 0.4, 'Ashtray', ASHTRAY);
         const a2 = ashtray('#2a6a4a', 'joint');
-        place(a2.group, 900, 450, -2.2);
+        place(a2.group, 1000, 260, -2.2, 'Ashtray', ASHTRAY); // just clear of the tipped bottle at (700, 700)
         for (const a of [a1, a2]) {
             a.group.updateMatrixWorld(true);
             if (a.smokePoint) this.smokePoints.push(a.group.localToWorld(a.smokePoint.clone()));
@@ -213,16 +202,27 @@ export default class Lounge {
         }
 
         // the bong, a jar of the good stuff, a grinder's worth of nugs, papers, lighters
-        place(bong(), 1650, -400, 0);
-        place(stashJar(), 300, -550, 0);
+        place(bong(), 1650, -400, 0, 'Bong', [
+            { label: 'Take a rip', say: ['*bubble bubble* ...cough.', 'Clear. You feel it in your toes.', 'Cashed. Pack another?'] },
+            { label: 'Change the water', say: ['Fresh water. You are a responsible adult.', 'Ew. Overdue.'] },
+            { label: 'Pass it left', say: ['Nobody here but you.', 'Left. Always left.'] },
+        ]);
+        place(stashJar(), 300, -550, 0, 'Stash jar', [
+            { label: 'Smell the jar', say: ['Gassy. Loud. Lemon and diesel.', 'That terp profile though.'] },
+            { label: 'Count what is left', say: ['Enough for tonight.', 'An eighth, maybe.', "Don't look. It's fine."] },
+        ]);
         for (let i = 0; i < 7; i++) {
             const n = nug(range(2, 3) * CM);
             place(n, range(-400, 200), range(-100, 300), n.rotation.y);
         }
         place(shake(90, 380), -100, 100, 0);
         place(papers(), -1000, 250, 0.5);
-        place(lighter('#ff3d8a'), 500, 150, 2.4);
-        place(lighter('#ffd23d'), -1900, -500, 0.8);
+        const LIGHTER: MenuItem[] = [
+            { label: 'Flick it', say: ['*flick*', '*flick* *flick* ...it works on the third try.', 'Out of fluid.'] },
+            { label: 'Pocket it', say: ['Classic lighter theft.', 'It was yours to begin with.'] },
+        ];
+        place(lighter('#ff3d8a'), 500, 150, 2.4, 'Lighter', LIGHTER);
+        place(lighter('#ffd23d'), -1900, -500, 0.8, 'Lighter', LIGHTER);
 
         // drinks: cans and bottles, a few knocked over
         const cans: [string, string, string, string, boolean][] = [
@@ -240,7 +240,7 @@ export default class Lounge {
             [-1100, 880], // well clear of the tipped bottle at (700, 700) and the blunt at (-500, 650)
         ];
         // tipped cans lie along the table too, so they can't roll into their neighbours
-        cans.forEach(([bg, fg, t, s, tipped], i) => place(can(bg, fg, t, s, tipped), canSpots[i][0], canSpots[i][1], tipped ? -0.1 : rangeAngle()));
+        cans.forEach(([bg, fg, t, s, tipped], i) => place(can(bg, fg, t, s, tipped), canSpots[i][0], canSpots[i][1], tipped ? -0.1 : rangeAngle(), t, DRINK(t)));
         // the knocked over ones on the rug
         const floorCan = can('#2bb85a', '#ffffff', 'DANK DEW', 'citrus', true);
         floorCan.position.set(top.x - 2800, FLOOR_Y + 10, top.z + 1400);
@@ -258,7 +258,7 @@ export default class Lounge {
         ];
         // tipped bottles lie along the table (ry 0) so they can't hang off the edge
         bottles.forEach(([glass, bg, fg, t, tipped], i) =>
-            place(bottle(glass, bg, fg, t, tipped), bottleSpots[i][0], bottleSpots[i][1], tipped ? 0.1 : rangeAngle())
+            place(bottle(glass, bg, fg, t, tipped), bottleSpots[i][0], bottleSpots[i][1], tipped ? 0.1 : rangeAngle(), t, DRINK(t))
         );
         const floorBottle = bottle('#4a2a0a', '#e8d9a8', '#3a1a00', 'HIGH LIFE', true);
         floorBottle.position.set(top.x + 2600, FLOOR_Y + 10, top.z + 1600);

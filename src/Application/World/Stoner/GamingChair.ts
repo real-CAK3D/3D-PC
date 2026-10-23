@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import Application from '../../Application';
 import { canvasTexture, CM, FLOOR_Y, inspectable, leafPath, mat, RoundedBoxGeometry, shadows } from './props';
+import { menu } from './ContextMenu';
+import { CameraKey } from '../../Camera/Camera';
 
 /**
  * Racing-style gaming chair in black and purple, replacing the baked office
@@ -11,6 +13,7 @@ export default class GamingChair {
     scene: THREE.Scene;
     group: THREE.Group;
     swivel: THREE.Group;
+    spin = 0; // extra turns from "Spin it"
 
     constructor() {
         this.application = new Application();
@@ -28,6 +31,12 @@ export default class GamingChair {
         this.buildBase();
         this.buildSeat();
         this.scene.add(inspectable(shadows(this.group), new THREE.Vector3(0.5, 0.3, 1)));
+        this.group.userData.menuTitle = 'Gaming chair';
+        menu(this.group, [
+            { label: 'Spin it', run: () => (this.spin += Math.PI * 4) },
+            { label: 'Sit at the desk', run: () => this.application.camera.transition(CameraKey.DESK) },
+            { label: 'Adjust the lumbar', say: ['Ahh. Your spine thanks you.', 'Click. Click. Perfect.'] },
+        ]);
     }
 
     buildBase() {
@@ -120,7 +129,7 @@ export default class GamingChair {
         // a lazy swivel toward wherever you're looking
         const m = this.application.mouse;
         const sizes = this.application.sizes;
-        const target = (m.x / sizes.width - 0.5) * -0.35;
+        const target = (m.x / sizes.width - 0.5) * -0.35 + this.spin;
         this.swivel.rotation.y += (target - this.swivel.rotation.y) * 0.03;
     }
 }

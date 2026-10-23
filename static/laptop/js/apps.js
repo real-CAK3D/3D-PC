@@ -535,7 +535,7 @@
 
     /* ======================= Calculator ======================= */
     C.register('calc', {
-        name: 'Calculator', icon: 'calc', keywords: 'math numbers', w: 300, h: 440,
+        name: 'Calculator', icon: 'calc', keywords: 'math numbers', w: 250, h: 354, minW: 230, minH: 320, chrome: 'overlay',
         open: function (win) {
             var cur = '0', acc = null, op = null, fresh = true, lastOp = null, lastVal = null;
             var exprEl = h('div', { class: 'expr', 'aria-hidden': 'true' });
@@ -662,7 +662,7 @@
                     var kv = h('dl', { class: 'kv' });
                     var row = function (k, v) { kv.appendChild(h('dt', { text: k })); kv.appendChild(h('dd', { text: v })); };
                     row('Name', 'CAK3D’s Laptop');
-                    row('System', 'CAK3D OS X 14.20 “Sonoma Haze”');
+                    row('System', 'CAK3D OS X 14.20 “Ventura Haze”');
                     row('Chip', 'Garden Silicon G4.20');
                     row('Memory', (navigator.deviceMemory ? navigator.deviceMemory + ' GB' : '8 GB') + ' unified');
                     row('Cores', String(navigator.hardwareConcurrency || 8));
@@ -671,9 +671,7 @@
                     row('Storage', C.store.set('probe', 1) ? 'Available' : 'Blocked (settings won’t be kept)');
                     sec.appendChild(kv);
                     sec.appendChild(h('div', { style: 'margin-top:18px' }, h('button', { class: 'btn', type: 'button', text: 'Reset all settings', onclick: function () {
-                        C.store.set('settings', {});
-                        Object.assign(C.settings, { theme: 'dark', accent: '#8a5cff', wall: 'haze', blur: true, nightShift: false, brightness: 1, dnd: false, volume: 0.8, wifi: true, magnify: true });
-                        C.setSetting('theme', 'dark');
+                        C.resetSettings();
                         render('about');
                     } })));
                 } }
@@ -774,6 +772,89 @@
         onResize: function (win) { if (win.data.fit) setTimeout(win.data.fit, 30); }
     });
 
+    /* ======================= Calendar ======================= */
+    C.register('calendar', {
+        name: 'Calendar', icon: 'calendar', keywords: 'date month days schedule', w: 600, h: 500, minW: 380, minH: 360, chrome: 'overlay',
+        open: function (win) {
+            var shown = new Date(); shown.setDate(1);
+            var title = h('h2', { class: 'cal-title', 'aria-live': 'polite' });
+            var grid = h('div', { class: 'cal-grid', role: 'grid', 'aria-label': 'Month' });
+            var nav = function (d) { shown = new Date(shown.getFullYear(), shown.getMonth() + d, 1); draw(); };
+            win.body.appendChild(h('div', { class: 'cal-app' },
+                h('div', { class: 'cal-head' }, title,
+                    h('div', { class: 'cal-nav' },
+                        h('button', { type: 'button', 'aria-label': 'Previous month', text: '‹', onclick: function () { nav(-1); } }),
+                        h('button', { type: 'button', text: 'Today', onclick: function () { shown = new Date(); shown.setDate(1); draw(); } }),
+                        h('button', { type: 'button', 'aria-label': 'Next month', text: '›', onclick: function () { nav(1); } }))),
+                h('div', { class: 'cal-dow', 'aria-hidden': 'true' }, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(function (d) { return h('span', { text: d }); })),
+                grid));
+            function draw() {
+                var y = shown.getFullYear(), m = shown.getMonth();
+                title.textContent = '';
+                title.appendChild(h('b', { text: shown.toLocaleDateString('en-US', { month: 'long' }) }));
+                title.appendChild(document.createTextNode(' ' + y));
+                win.setTitle('Calendar: ' + shown.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
+                grid.textContent = '';
+                var lead = (new Date(y, m, 1).getDay() + 6) % 7; // Monday first
+                var start = new Date(y, m, 1 - lead);
+                var today = new Date();
+                for (var i = 0; i < 42; i++) {
+                    var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+                    var isToday = d.toDateString() === today.toDateString();
+                    var cls = 'cal-cell' + (d.getMonth() !== m ? ' out' : '') + (i % 7 >= 5 ? ' wknd' : '');
+                    // the papers that come out on this day (from the NewsStand schedule)
+                    var ev = [];
+                    if (d.getDate() === 1) ev.push('Trail Mix');
+                    if (d.getDate() === 15) ev.push('HASHISH');
+                    if (d.getDay() === 0) ev.push('Sunday Smoke');
+                    if (d.getDay() === 2) ev.push('Roach Clips');
+                    if (d.getDay() === 6) ev.push('Baked Goods');
+                    grid.appendChild(h('div', { class: cls, role: 'gridcell', 'aria-label': d.toDateString() + (ev.length ? ': ' + ev.join(', ') : ''), 'aria-current': isToday ? 'date' : null },
+                        h('span', { class: 'n' + (isToday ? ' today' : ''), text: String(d.getDate()) }),
+                        d.getMonth() === m ? ev.map(function (e) { return h('span', { class: 'ev', text: e }); }) : null));
+                }
+            }
+            win.el.addEventListener('keydown', function (e) {
+                if (e.key === 'ArrowLeft' && e.target.tagName !== 'INPUT') nav(-1);
+                if (e.key === 'ArrowRight' && e.target.tagName !== 'INPUT') nav(1);
+            });
+            draw();
+        }
+    });
+
+    /* ======================= Wallpapers ======================= */
+    C.register('wallpapers', {
+        name: 'Wallpapers', icon: 'wallpapers', keywords: 'background desktop picture theme dynamic', w: 800, h: 600, minW: 360, single: true,
+        open: function (win) {
+            var root = h('div', { class: 'scroll wp-app' });
+            win.body.appendChild(root);
+            var draw = function () {
+                var cur = C.WALLS.filter(function (w) { return w.id === C.settings.wall; })[0] || C.WALLS[0];
+                root.textContent = '';
+                root.appendChild(h('div', { class: 'wp-hero' },
+                    h('div', { class: 'wp-preview wall-' + cur.id + (cur.id === 'garden' && C.isDaytime() ? ' is-day' : ''), role: 'img', 'aria-label': cur.name + ' preview' }),
+                    h('h2', { text: cur.name }),
+                    h('p', { class: 'muted', text: cur.sub || 'Wallpaper' })));
+                var id = 'wp-auto-' + win.id;
+                var chk = h('input', { type: 'checkbox', id: id, checked: !!C.settings.autoTheme });
+                chk.addEventListener('change', function () { C.settings.autoTheme = chk.checked; C.setSetting('wall', C.settings.wall); });
+                root.appendChild(h('div', { class: 'wp-check' }, chk, h('label', { for: id, text: 'Change dark/light mode as the Garden wallpaper changes' })));
+                var section = function (label, list) {
+                    root.appendChild(h('h3', { class: 'wp-h', text: label }));
+                    var g = h('div', { class: 'wp-grid', role: 'radiogroup', 'aria-label': label });
+                    list.forEach(function (w) {
+                        g.appendChild(h('button', { type: 'button', class: 'wp-item', role: 'radio', 'aria-checked': String(w.id === cur.id), onclick: function () { C.setSetting('wall', w.id); draw(); } },
+                            h('span', { class: 'wp-thumb wall-' + w.id + (w.id === 'garden' && C.isDaytime() ? ' is-day' : ''), 'aria-hidden': 'true' }), h('span', { text: w.name })));
+                    });
+                    root.appendChild(g);
+                };
+                section('Dynamic Wallpapers', C.WALLS.filter(function (w) { return w.dynamic; }));
+                section('Garden Wallpapers', C.WALLS.filter(function (w) { return !w.dynamic; }));
+            };
+            draw();
+        }
+    });
+
     /* ======================= About ======================= */
     C.register('about', {
         name: 'About', icon: 'logo', hidden: true, w: 400, h: 400,
@@ -799,7 +880,7 @@
             win.setTitle('About CAK3D OS X');
             b.appendChild(h('div', { style: 'width:96px;height:96px;margin:0 auto', html: I.logo }));
             b.appendChild(h('h2', { style: 'margin:10px 0 2px;font-size:24px', text: 'CAK3D OS X' }));
-            b.appendChild(h('div', { class: 'muted', text: 'Sonoma Haze · Version 14.20' }));
+            b.appendChild(h('div', { class: 'muted', text: 'Ventura Haze · Version 14.20' }));
             var kv = h('dl', { class: 'kv', style: 'text-align:left;margin-top:16px;grid-template-columns:90px 1fr' });
             [['Chip', 'Garden Silicon G4.20'], ['Memory', '8 GB'], ['Startup', 'CAK3D HD'], ['Serial', 'GRDN-420-OSX'], ['Made in', 'the Garden, by CAK3D']].forEach(function (r) { kv.appendChild(h('dt', { text: r[0] })); kv.appendChild(h('dd', { text: r[1] })); });
             b.appendChild(kv);

@@ -56,28 +56,37 @@
 
     /* ---------- settings ---------- */
     var WALLS = [
+        { id: 'garden', name: 'Garden', sub: 'Dynamic Wallpaper', dynamic: true }, { id: 'garden-day', name: 'Garden Day', sub: 'Light' }, { id: 'garden-night', name: 'Garden Night', sub: 'Dark' },
         { id: 'haze', name: 'Purple Haze' }, { id: 'dunes', name: 'Garden Dunes' }, { id: 'leaf', name: 'Green Leaf' },
         { id: 'night', name: 'Night Garden' }, { id: 'sunset', name: 'Sunset' }, { id: 'lava', name: 'Lava Lamp' },
         { id: 'room', name: 'The Room' }, { id: 'solid', name: 'Solid Plum' }
     ];
+    // macOS-style system colors, CAK3D purple first
     var ACCENTS = [
-        { c: '#8a5cff', n: 'Purple' }, { c: '#2fa85a', n: 'Green' }, { c: '#e0479e', n: 'Pink' }, { c: '#f08a24', n: 'Orange' },
-        { c: '#3a8dff', n: 'Blue' }, { c: '#e5484d', n: 'Red' }, { c: '#b8901a', n: 'Gold' }, { c: '#7d7790', n: 'Graphite' }
+        { c: '#8a5cff', n: 'Garden Purple' }, { c: '#ff9500', n: 'Orange' }, { c: '#28b148', n: 'Green' }, { c: '#32ade6', n: 'Cyan' },
+        { c: '#007aff', n: 'Blue' }, { c: '#5856d6', n: 'Indigo' }, { c: '#ff2d55', n: 'Pink' }, { c: '#8e8e93', n: 'Graphite' }
     ];
-    var defaults = { theme: 'dark', accent: '#8a5cff', wall: 'haze', blur: true, nightShift: false, brightness: 1, dnd: false, volume: 0.8, wifi: true, magnify: true };
-    var settings = Object.assign({}, defaults, store.get('settings', {}));
+    var defaults = { theme: 'light', accent: '#8a5cff', wall: 'garden', autoTheme: true, animations: true, blur: true, nightShift: false, brightness: 1, dnd: false, volume: 0.8, wifi: true, magnify: true };
+    var settings = Object.assign({}, defaults, store.get('settings2', {}));
     var setListeners = [];
+    /** the Garden wallpaper is dynamic: the day picture from 7am to 7pm, the night one otherwise */
+    function isDaytime() { var hr = new Date().getHours(); return hr >= 7 && hr < 19; }
+    function wallIsDark() {
+        if (settings.wall === 'garden') return !isDaytime();
+        return settings.wall !== 'garden-day';
+    }
     function applySettings() {
         var root = document.documentElement;
-        root.setAttribute('data-theme', settings.theme === 'light' ? 'light' : 'dark');
+        if (settings.autoTheme && settings.wall === 'garden') settings.theme = isDaytime() ? 'light' : 'dark';
+        root.setAttribute('data-theme', settings.theme === 'dark' ? 'dark' : 'light');
         root.style.setProperty('--accent', settings.accent);
         root.classList.toggle('no-blur', !settings.blur);
-        var wallClass = 'wall-' + settings.wall;
+        root.classList.toggle('no-anim', settings.animations === false);
+        var wallClass = 'wall-' + settings.wall + (settings.wall === 'garden' && isDaytime() ? ' is-day' : '');
         ['#desktop', '#lock'].forEach(function (s) {
             var el = $(s);
-            el.className = el.className.replace(/\bwall-\S+/g, '').trim() + ' ' + wallClass;
+            el.className = (el.className.replace(/\bwall-\S+/g, '').replace(/\bis-day\b/g, '').trim() + ' ' + wallClass).trim();
         });
-        $('#dock').classList.toggle('mag', !!settings.magnify);
         var shade = $('#shade');
         shade.style.opacity = String(Math.min(0.8, 1 - settings.brightness));
         $('#nightshift').hidden = !settings.nightShift;
@@ -85,7 +94,15 @@
     }
     function setSetting(k, v) {
         settings[k] = v;
-        store.set('settings', settings);
+        // picking a theme by hand turns off "change with the wallpaper"
+        if (k === 'theme') settings.autoTheme = false;
+        store.set('settings2', settings);
+        applySettings();
+    }
+    function resetSettings() {
+        Object.keys(settings).forEach(function (k) { delete settings[k]; });
+        Object.assign(settings, defaults);
+        store.set('settings2', settings);
         applySettings();
     }
 
@@ -120,7 +137,9 @@
         var bZoom = h('button', { class: 'light zoomb', type: 'button', 'aria-label': 'Zoom', title: 'Zoom (Alt+Enter)', html: '<span aria-hidden="true">+</span>' });
         var bar = h('div', { class: 'titlebar' }, h('div', { class: 'lights' }, bClose, bMin, bZoom), titleText);
         var body = h('div', { class: 'winbody' });
-        var el = h('section', { class: 'win opening', role: 'dialog', 'aria-label': opts.title || app.name, tabindex: '-1' }, bar, body);
+        var el = h('section', { class: 'win opening app-' + app.id + (app.chrome === 'overlay' ? ' chrome-overlay' : ''), role: 'dialog', 'aria-label': opts.title || app.name, tabindex: '-1' }, bar, body);
+        if (app.minW) el.style.minWidth = app.minW + 'px';
+        if (app.minH) el.style.minHeight = app.minH + 'px';
         ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].forEach(function (d) { el.appendChild(h('div', { class: 'rs ' + d, 'data-dir': d })); });
         el.style.left = x + 'px';
         el.style.top = y + 'px';
@@ -262,7 +281,7 @@
         var el = win.el, r = e.currentTarget;
         var sx = e.clientX, sy = e.clientY;
         var o = { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight };
-        var minW = 280, minH = 170;
+        var minW = win.app.minW || 240, minH = win.app.minH || 160;
         r.setPointerCapture(e.pointerId);
         document.body.classList.add('dragging');
         var move = function (ev) {
@@ -363,19 +382,21 @@
 
     function leafItems() {
         return [
-            { label: 'About CAK3D OS X', action: function () { open('about'); } },
+            { label: 'About This Laptop', action: function () { open('about'); } },
             '-',
             { label: 'System Settings…', action: function () { open('settings'); } },
-            { label: 'Launchpad', action: function () { toggleLaunchpad(true); } },
+            { label: 'Launchpad', kbd: 'Alt L', action: function () { toggleLaunchpad(true); } },
+            '-',
             { label: 'Recent Items: Safari', action: function () { open('safari'); } },
             '-',
-            { label: 'Force Quit All Apps…', action: function () { wins.slice().forEach(closeWin); } },
+            { label: 'Force Quit…', action: function () { wins.slice().forEach(closeWin); } },
             '-',
             { label: 'Sleep', action: function () { lock(); } },
             { label: 'Restart…', action: function () { location.reload(); } },
             { label: 'Shut Down…', action: shutDown },
             '-',
-            { label: 'Lock Screen', kbd: '', action: function () { lock(); } }
+            { label: 'Lock Screen', action: function () { lock(); } },
+            { label: 'Log Out CAK3D…', action: function () { wins.slice().forEach(closeWin); lock(); } }
         ];
     }
     function appMenus(win) {
@@ -413,6 +434,15 @@
                 { label: win && win.zoomed ? 'Exit Zoom' : 'Zoom', kbd: 'Alt ↵', disabled: !win, action: function () { if (win) toggleZoom(win); } },
                 { label: 'Enter Full Screen', action: fullScreen }
             ])
+        });
+        var goTo = function (label, folder) { return { label: label, action: function () { open('finder', { folder: folder }); } }; };
+        list.push({
+            label: 'Go', items: [
+                goTo('CAK3D HD', 'home'), goTo('Apps', 'apps'), goTo('Sites', 'sites'), goTo('Papers', 'papers'), goTo('Pictures', 'pictures'), goTo('Documents', 'documents'),
+                '-',
+                { label: 'Launchpad', kbd: 'Alt L', action: function () { toggleLaunchpad(true); } },
+                { label: 'Screen Sharing: CAK3D PC', action: function () { open('screenshare'); } }
+            ]
         });
         var winItems = [
             { label: 'Minimize', kbd: 'Alt M', disabled: !win, action: function () { if (win) minimizeWin(win); } },
@@ -466,8 +496,13 @@
     function tick() {
         var now = new Date();
         var time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-        var mbText = isPhone() ? time : now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + '  ' + time;
+        // "Thu Oct 22  6:28 PM", like the menu bar on a Mac
+        var mbText = isPhone() ? time : now.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + now.toLocaleDateString('en-US', { month: 'short' }) + ' ' + now.getDate() + ' ' + time;
         $('#clockBtn').textContent = mbText;
+        // the dynamic wallpaper (and theme) follows the time of day
+        var day = isDaytime();
+        if (settings.wall === 'garden' && tick.lastDay !== undefined && tick.lastDay !== day) applySettings();
+        tick.lastDay = day;
         $('#lockTime').textContent = time.replace(/\s?[AP]M$/i, '');
         $('#lockDate').textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
         clearTimeout(clockTimer);
@@ -598,7 +633,7 @@
     }
 
     /* ---------- dock ---------- */
-    var PINNED = ['finder', 'launchpad', 'safari', 'screenshare', 'tv', 'fm', 'notes', 'calc', 'terminal', 'settings'];
+    var PINNED = ['finder', 'launchpad', 'safari', 'screenshare', 'tv', 'fm', 'notes', 'calendar', 'calc', 'terminal', 'wallpapers', 'settings'];
     var bounceId = null;
     function bounce(id) { bounceId = id; renderDock(); bounceId = null; }
     function renderDock() {
@@ -637,6 +672,46 @@
         });
         item('trash', 'Trash', 'bin', function () { open('finder', { folder: 'trash' }); }, null, false);
         if (focused) { var f = dock.querySelector('[data-key="' + focused + '"]'); if (f) f.focus(); }
+        dockMag.centers = null;
+        if (dockMag.x != null) magnify();
+    }
+
+    /* Dock magnification: icons near the pointer grow with a smooth falloff, like a real dock.
+     * Driven by pointermove only (no animation loop); CSS transitions do the easing. */
+    var dockMag = { x: null, centers: null };
+    var MAG_BASE = 57, MAG_MAX = 96, MAG_RANGE = 175;
+    function magnify() {
+        var items = Array.prototype.slice.call($('#dock').querySelectorAll('.dock-item'));
+        if (dockMag.x == null || !settings.magnify || isPhone()) {
+            items.forEach(function (b) { b.style.width = ''; b.style.height = ''; });
+            return;
+        }
+        // centers measured at rest size, so growing icons don't push the targets around
+        if (!dockMag.centers) {
+            items.forEach(function (b) { b.style.width = ''; b.style.height = ''; });
+            dockMag.centers = items.map(function (b) { var r = b.getBoundingClientRect(); return r.left + r.width / 2; });
+        }
+        items.forEach(function (b, i) {
+            var d = Math.abs(dockMag.x - dockMag.centers[i]);
+            var f = d < MAG_RANGE ? (Math.cos(Math.PI * d / MAG_RANGE) + 1) / 2 : 0;
+            var size = MAG_BASE + (MAG_MAX - MAG_BASE) * f;
+            b.style.width = size.toFixed(1) + 'px';
+            b.style.height = (size + 4).toFixed(1) + 'px';
+        });
+    }
+    function bindDockMagnify() {
+        var dock = $('#dock');
+        var idle = 0;
+        dock.addEventListener('pointerenter', function (e) { if (e.pointerType === 'mouse') { dockMag.centers = null; } });
+        dock.addEventListener('pointermove', function (e) {
+            if (e.pointerType !== 'mouse') return;
+            dockMag.x = e.clientX;
+            dock.classList.add('tracking');
+            clearTimeout(idle);
+            idle = setTimeout(function () { dock.classList.remove('tracking'); }, 120);
+            magnify();
+        });
+        dock.addEventListener('pointerleave', function () { dockMag.x = null; dockMag.centers = null; dock.classList.remove('tracking'); magnify(); });
     }
     function dockClick(id) {
         if (id === 'launchpad') { toggleLaunchpad(); return; }
@@ -802,13 +877,31 @@
     function renderCC() {
         var cc = $('#cc');
         cc.textContent = '';
-        settings.darkMode = settings.theme !== 'light';
+        settings.darkMode = settings.theme === 'dark';
+        var big = function (label, emoji, pressed, onClick) {
+            var b = h('button', { class: 'cc-mod big', type: 'button', 'aria-pressed': String(!!pressed) }, h('span', { class: 'dot', text: emoji, 'aria-hidden': 'true' }), label);
+            b.addEventListener('click', function () { onClick(); renderCC(); var again = $('#cc').querySelectorAll('.cc-mod.big')[label === 'Dark mode' ? 0 : 1]; if (again) again.focus(); });
+            return b;
+        };
+        cc.appendChild(big('Dark mode', '◐', settings.darkMode, function () { setSetting('theme', settings.darkMode ? 'light' : 'dark'); }));
+        cc.appendChild(big('Animations', '✦', settings.animations !== false, function () { setSetting('animations', settings.animations === false); }));
+        var colors = h('div', { class: 'cc-colors', role: 'radiogroup', 'aria-label': 'System color' });
+        ACCENTS.forEach(function (a) {
+            var on = settings.accent === a.c;
+            colors.appendChild(h('button', { class: 'cc-color', type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': a.n, title: a.n, style: 'background:' + a.c, text: on ? '✓' : '',
+                onclick: function () { setSetting('accent', a.c); renderCC(); var f = $('#cc .cc-color[aria-checked="true"]'); if (f) f.focus(); } }));
+        });
+        cc.appendChild(h('div', { class: 'cc-mod wide' }, h('h4', { text: 'System Color' }), colors));
+        var wall = WALLS.filter(function (w) { return w.id === settings.wall; })[0] || WALLS[0];
+        cc.appendChild(h('button', { class: 'cc-mod wide cc-wall', type: 'button', onclick: function () { closeOverlays(); open('wallpapers'); } },
+            h('span', { class: 'thumb wall-' + wall.id + (wall.id === 'garden' && isDaytime() ? ' is-day' : ''), 'aria-hidden': 'true' }),
+            h('span', null, h('b', { text: wall.name }), h('span', { class: 'sub', text: wall.sub || 'Wallpaper' }))));
         cc.appendChild(h('div', { class: 'cc-mod' },
             ccToggle('Wi-Fi', function (v) { return v ? 'GardenNet 5G' : 'Off'; }, '📶', 'wifi'),
             ccToggle('Focus', function (v) { return v ? 'Do Not Disturb' : 'Off'; }, '🌙', 'dnd')));
         cc.appendChild(h('div', { class: 'cc-mod' },
-            ccToggle('Dark Mode', function (v) { return v ? 'On' : 'Off'; }, '◐', 'darkMode', function (v) { settings.darkMode = v; setSetting('theme', v ? 'dark' : 'light'); }),
-            ccToggle('Night Shift', function (v) { return v ? 'On' : 'Off'; }, '☀', 'nightShift')));
+            ccToggle('Night Shift', function (v) { return v ? 'On' : 'Off'; }, '☀', 'nightShift'),
+            ccToggle('Blur', function (v) { return v ? 'On' : 'Reduced'; }, '◫', 'blur')));
         var bright = h('input', { type: 'range', class: 'cc-slider', min: '0.3', max: '1', step: '0.05', value: String(settings.brightness), 'aria-label': 'Display brightness' });
         bright.addEventListener('input', function () { setSetting('brightness', +bright.value); });
         cc.appendChild(h('div', { class: 'cc-mod wide' }, h('h4', { text: 'Display' }), bright));
@@ -819,10 +912,6 @@
             h('h4', { text: 'CAK3D FM' }),
             h('div', { class: 'muted', style: 'font-size:12px;margin-bottom:6px', text: fmState.playing ? '♪ ' + (fmState.title || 'Now playing') : 'Not playing' }),
             h('button', { class: 'btn', type: 'button', text: 'Open CAK3D FM', onclick: function () { closeOverlays(); open('fm'); } })));
-        cc.appendChild(h('div', { class: 'cc-mod' },
-            ccToggle('Transparency', function (v) { return v ? 'Blur on' : 'Reduced'; }, '◫', 'blur')));
-        cc.appendChild(h('div', { class: 'cc-mod' },
-            ccToggle('Dock Magnify', function (v) { return v ? 'On' : 'Off'; }, '⌕', 'magnify')));
     }
     function togglePanel(id, render) {
         var p = $(id);
@@ -951,6 +1040,7 @@
         desktopIcons();
         updateMenubar();
         renderDock();
+        bindDockMagnify();
 
         $('#leafBtn').addEventListener('click', function (e) { menuFrom($('#leafBtn'), leafItems(), e); });
         $('#menubar').addEventListener('pointerover', menubarHover);
@@ -1017,6 +1107,16 @@
             lockEl.hidden = true;
         } else {
             $('#unlockBtn').focus({ preventScroll: true });
+            // the start-up screen plays once per browser session (it's one CSS animation, then it's removed)
+            var seen = false;
+            try { seen = sessionStorage.getItem('cak3dosx.booted') === '1'; sessionStorage.setItem('cak3dosx.booted', '1'); } catch (e) { /* storage blocked */ }
+            if (!seen && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                var bootEl = $('#boot');
+                $('#bootLogo').innerHTML = I.leafMono;
+                bootEl.hidden = false;
+                setTimeout(function () { bootEl.classList.add('done'); }, 1700);
+                setTimeout(function () { bootEl.remove(); }, 2300);
+            }
         }
         if (params.get('open') && apps[params.get('open')]) open(params.get('open'));
         if (!store.get('welcomed', false)) {
@@ -1030,7 +1130,7 @@
         h: h, icon: icon, esc: esc, store: store, post: post, inRoom: inRoom, isPhone: isPhone, say: say,
         register: register, apps: apps, open: open, windowsOf: windowsOf, toast: toast,
         showMenu: showMenu, closeMenu: closeMenu,
-        settings: settings, setSetting: setSetting, onSettings: function (f) { setListeners.push(f); }, WALLS: WALLS, ACCENTS: ACCENTS,
+        settings: settings, setSetting: setSetting, resetSettings: resetSettings, isDaytime: isDaytime, wallIsDark: wallIsDark, onSettings: function (f) { setListeners.push(f); }, WALLS: WALLS, ACCENTS: ACCENTS,
         onStereo: function (f) { stereoListeners.push(f); }, fmState: function () { return fmState; },
         wikiSearch: wikiSearch, wikiUrl: wikiUrl, stripTags: stripTags, looksLikeUrl: looksLikeUrl, getWeather: getWeather,
         openUrl: function (u) { return openUrl(u); },

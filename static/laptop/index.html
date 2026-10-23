@@ -1,17 +1,22 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#1b0f33" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5.0.16/index.css" />
     <title>CAK3D OS X</title>
     <link rel="icon" href="../images/favicon-32x32.png" />
     <link rel="stylesheet" href="css/apps.css" />
     <link rel="stylesheet" href="css/shell.css" />
 </head>
 <body>
+    <!-- Boot screen (first load only) -->
+    <div id="boot" aria-hidden="true" hidden><span class="boot-logo" id="bootLogo"></span><span class="boot-bar"><i></i></span></div>
+
     <!-- Lock screen -->
-    <div id="lock" class="wall-haze" role="dialog" aria-modal="true" aria-label="Lock screen">
+    <div id="lock" class="wall-garden" role="dialog" aria-modal="true" aria-label="Lock screen">
         <div class="shade"></div>
         <div class="lock-date" id="lockDate"></div>
         <div class="lock-time" id="lockTime" aria-live="off"></div>
@@ -21,7 +26,7 @@
             <button class="enter glass" id="unlockBtn" type="button">Enter Garden <span class="arrow" aria-hidden="true">➜</span></button>
             <div class="hint">Click, tap or press any key to sign in</div>
         </div>
-        <div class="brandline"><span class="logo" id="lockLogo"></span>CAK3D OS X Sonoma Haze</div>
+        <div class="brandline"><span class="logo" id="lockLogo"></span>CAK3D OS X Ventura Haze</div>
     </div>
 
     <!-- Menu bar -->
@@ -40,7 +45,7 @@
     </header>
 
     <!-- Desktop -->
-    <main id="desktop" class="wall-haze" aria-label="Desktop">
+    <main id="desktop" class="wall-garden" aria-label="Desktop">
         <div id="icons" role="list" aria-label="Desktop items"></div>
         <div id="windows"></div>
     </main>

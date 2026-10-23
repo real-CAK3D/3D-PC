@@ -5,6 +5,7 @@ import { CameraKey } from '../../Camera/Camera';
 import UIEventBus from '../../UI/EventBus';
 import Entertainment from './Entertainment';
 import { canvasTexture, CM, FLOOR_Y, inspectable, mat, RoundedBoxGeometry, shadows } from './props';
+import { menu } from './ContextMenu';
 
 // a 13.6" MacBook Air: 30.4 x 21.5 cm, about a centimeter thick
 const W = 30.4 * CM;
@@ -126,7 +127,23 @@ export default class Laptop {
             this.wake();
             return this.view();
         };
+        g.userData.menuTitle = 'MacBook Air';
+        menu(g, [
+            { label: 'Open it up', run: () => this.application.world.deskStash.inspect(g) },
+            { label: 'Watch TV on it', run: () => this.openApp('tv') },
+            { label: 'Browse the web', run: () => this.openApp('safari') },
+            { label: 'Open on this device', run: () => window.open('laptop/index.html?unlocked', '_blank') },
+            { label: 'Check the battery', say: ['100%. It never leaves the charger.', 'Plugged in, not charging. Classic.'] },
+        ]);
         this.drawLock();
+    }
+
+    /** Wake it and jump straight into one of its apps */
+    openApp(app: string) {
+        this.application.world.deskStash.inspect(this.group);
+        const go = () => this.send({ type: 'cak3d-laptop-control', action: 'open', app });
+        if (this.iframe.contentWindow && this.iframe.src) window.setTimeout(go, 300);
+        this.iframe.addEventListener('load', go, { once: true });
     }
 
     /** The real page on the display, placed exactly over the screen mesh */

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import Application from '../../Application';
 import { canvasTexture, CM, FLOOR_Y, inspectable, mat, RoundedBoxGeometry, shadows } from './props';
+import { menu } from './ContextMenu';
 import { ROOM } from './Room';
 import { StashItem } from './stash';
 
@@ -110,6 +111,13 @@ export default class Toolbox {
         this.scene.add(shadows(g));
         inspectable(g, new THREE.Vector3(-0.7, 0.9, -0.2));
         g.userData.onClick = () => (this.open = !this.open);
+        g.userData.menuTitle = "Ibby's toolbox";
+        menu(g, () => [
+            { label: this.open ? 'Close the lid' : 'Open the lid', run: () => (this.open = !this.open) },
+            { label: 'Book a repair', run: () => this.application.world.deskStash.loadOnPc(IBBY.wrench, 'desk') },
+            { label: 'Visit IbbyAutoWorks', run: () => this.application.world.deskStash.loadOnPc(IBBY.ratchet, 'desk') },
+            { label: 'Borrow a 10mm socket', say: ['Gone. Nobody has ever seen the 10mm socket.', 'Ibby says no.'] },
+        ]);
     }
 
     addTool(box: THREE.Group, tool: THREE.Object3D, kind: string, x: number, y: number, z: number) {
@@ -198,6 +206,21 @@ export default class Toolbox {
             tongue.rotation.x = -0.35;
             g.add(s, foot, shaft, tongue);
             this.scene.add(shadows(g));
+            g.userData.menuTitle = 'Work boots';
+            let kicked = false;
+            menu(g, () => [
+                { label: 'Smell them', say: ['Motor oil, brake cleaner and three days of socks.', 'Your eyes water a little.', 'Smells like a shift at the shop.'] },
+                { label: 'Put them on', say: ["They're Ibby's size, not yours.", 'Steel toes. Heavy. You take them back off.'] },
+                {
+                    label: kicked ? 'Stand it back up' : 'Kick it over',
+                    run: () => {
+                        kicked = !kicked;
+                        g.rotation.z = kicked ? Math.PI / 2 - 0.1 : 0;
+                        g.position.y = FLOOR_Y + (kicked ? 5.5 * CM : 0);
+                    },
+                },
+                { label: 'Check for spare change', say: ['A washer, a zip tie and a Skittle.', '35 cents!'] },
+            ]);
             return inspectable(g, new THREE.Vector3(0.3, 0.6, -1));
         };
         boot(3200, ROOM.front - 600, Math.PI + 0.1);

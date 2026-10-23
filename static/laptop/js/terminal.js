@@ -21,7 +21,7 @@
         return dir({
             Users: dir({ cak3d: dir({ Apps: dir(apps), Sites: dir(sites), Papers: dir(papers), Pictures: dir(pics), Documents: dir(docs), 'readme.txt': file('Type `help` to see what this shell can do.\nTry: ls Apps, cat Papers/dab.txt, open cak3d-truck.vercel.app, neofetch') }) }),
             Applications: dir(Object.keys(C.apps).filter(function (k) { return !C.apps[k].hidden; }).reduce(function (o, k) { o[slug(C.apps[k].name) + '.app'] = file(null, { app: k }); return o; }, {})),
-            System: dir({ 'version.txt': file('CAK3D OS X 14.20 (Sonoma Haze)') })
+            System: dir({ 'version.txt': file('CAK3D OS X 14.20 (Ventura Haze)') })
         });
     }
     function resolve(cwd, p) {
@@ -133,13 +133,13 @@
                 history: function () { hist.forEach(function (c, i) { print(String(i + 1).padStart(4) + '  ' + c); }); },
                 whoami: function () { print('cak3d'); },
                 date: function () { print(new Date().toString()); },
-                uname: function (args) { print(args[0] === '-a' ? 'CAK3D-OS-X Garden-Air 14.20.0 CAK3D OS X Kernel Version 14.20.0: Sonoma Haze; root:xnu-420 G4.20 garden64' : 'CAK3D-OS-X'); },
+                uname: function (args) { print(args[0] === '-a' ? 'CAK3D-OS-X Garden-Air 14.20.0 CAK3D OS X Kernel Version 14.20.0: Ventura Haze; root:xnu-420 G4.20 garden64' : 'CAK3D-OS-X'); },
                 sw_vers: function () { print('ProductName:\t\tCAK3D OS X\nProductVersion:\t\t14.20\nBuildVersion:\t\t420G69'); },
                 ver: function () { cmds.sw_vers(); },
                 neofetch: function () {
                     var art = ['       .:.        ', '      .:::.       ', '  .   :::::   .   ', '  ::. ::::: .::   ', '   ::::::::::::   ', '    ´:::::::´     ', '  .::´´ | ``::.   ', '        |         '];
                     var info = [
-                        'cak3d@Garden-Air', '----------------', 'OS: CAK3D OS X 14.20 Sonoma Haze', 'Host: Garden Air (laptop in the room)',
+                        'cak3d@Garden-Air', '----------------', 'OS: CAK3D OS X 14.20 Ventura Haze', 'Host: Garden Air (laptop in the room)',
                         'Kernel: CAK3D 14.20.0', 'Shell: zsh 5.9 (pretend)', 'Resolution: ' + window.innerWidth + 'x' + window.innerHeight,
                         'CPU: Garden Silicon G4.20 (' + (navigator.hardwareConcurrency || 8) + ' cores)', 'Memory: ' + (navigator.deviceMemory ? navigator.deviceMemory + ' GB' : '8 GB'),
                         'Uptime: ' + Math.round(performance.now() / 60000) + ' mins'

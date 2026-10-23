@@ -3,6 +3,7 @@ import Application from '../../Application';
 import { CameraKey } from '../../Camera/Camera';
 import UIEventBus from '../../UI/EventBus';
 import { canvasTexture, CM, FLOOR_Y, inspectable, mat, RoundedBoxGeometry, shadows, woodTexture } from './props';
+import { menu } from './ContextMenu';
 import { papers } from './papers';
 import BezierEasing from 'bezier-easing';
 import TvScreen, { Clip, Media } from './TvScreen';
@@ -169,6 +170,15 @@ export default class Entertainment {
 
         // first click zooms in on the screen, after that each click flips the channel
         group.userData.tv = true;
+        group.userData.menuTitle = 'TV';
+        menu(group, () => [
+            { label: this.tvOn ? 'Turn it off' : 'Turn it on', run: () => this.setPower(!this.tvOn) },
+            { label: 'Next channel', run: () => this.setPower(true, (this.channel + 1) % this.channels.length) },
+            { label: 'Previous channel', run: () => this.setPower(true, (this.channel - 1 + this.channels.length) % this.channels.length) },
+            { label: 'Watch Jellyfin', run: () => this.setPower(true, this.channels.findIndex((c) => c.name === 'JELLYFIN')) },
+            { label: 'Play the PS5', run: () => UIEventBus.dispatch('gameMode', { on: true }) },
+            { label: 'Zoom in', run: () => this.application.camera.transition(CameraKey.TV_SCREEN, 1600, ZOOM_EASE) },
+        ]);
         this.clickable(group, () => {
             if (this.view !== CameraKey.TV_SCREEN) {
                 this.application.camera.transition(CameraKey.TV_SCREEN, 1600, ZOOM_EASE);
@@ -202,6 +212,13 @@ export default class Entertainment {
             });
             this.scene.add(shadows(g));
             this.clickable(g, () => this.openStereo());
+            g.userData.menuTitle = 'Speaker';
+            menu(g, [
+                { label: 'Open the stereo', run: () => this.openStereo() },
+                { label: 'Turn it up', run: () => this.tv.setVolume(this.tv.volume + 0.1) },
+                { label: 'Turn it down', run: () => this.tv.setVolume(this.tv.volume - 0.1) },
+                { label: 'Feel the bass', say: ['Your chest rattles.', 'The neighbors bang on the wall.'] },
+            ]);
         }
     }
 
@@ -262,6 +279,12 @@ export default class Entertainment {
         this.scene.add(shadows(g));
         // power on: the game shows up on the TV (see GameMode)
         this.clickable(g, () => UIEventBus.dispatch('gameMode', { on: true }));
+        g.userData.menuTitle = 'PS5';
+        menu(g, [
+            { label: 'Play games', run: () => UIEventBus.dispatch('gameMode', { on: true }) },
+            { label: 'Blow the dust out', say: ['Wrong console, but it feels right.', 'A dust bunny the size of a hamster.'] },
+            { label: 'Listen to the fan', say: ['Jet engine mode.', 'Whisper quiet. For now.'] },
+        ]);
     }
 
     /** Lean in on the receiver and pull up its station / playlist picker */

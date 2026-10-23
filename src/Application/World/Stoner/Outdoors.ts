@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import Application from '../../Application';
 import { canvasTexture, FLOOR_Y, inspectable, mat, range, shadows } from './props';
+import { menu } from './ContextMenu';
 import { ROOM, WINDOW } from './Room';
 
 /**
@@ -325,6 +326,12 @@ export default class Outdoors {
         plate.position.set(0, -800, 10);
         g.add(plate);
         this.scene.add(inspectable(shadows(g, true, false), new THREE.Vector3(0, -0.1, 1)));
+        g.userData.menuTitle = 'Clock';
+        menu(g, () => [
+            { label: 'What time is it?', say: `It's ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} in Lewiston, Maine.` },
+            { label: "What's it like out?", say: `${this.weather.text}${this.weather.temp !== null ? `, ${Math.round(this.weather.temp)}°F` : ''} outside.` },
+            { label: 'Is it 4:20?', say: new Date().getHours() % 12 === 4 && new Date().getMinutes() === 20 ? 'IT IS 4:20. Go go go.' : "Not yet. But it's 4:20 somewhere." },
+        ]);
         this.drawReadout();
     }
 

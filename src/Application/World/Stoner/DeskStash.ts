@@ -464,7 +464,7 @@ export default class DeskStash {
             camera.transition(CameraKey.INSPECT, 1500, ZOOM_EASE);
             return;
         }
-        const box = new THREE.Box3().setFromObject(obj);
+        const box = visibleBox(obj);
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
         let dir: THREE.Vector3 = obj.userData.inspectDir;
@@ -635,4 +635,25 @@ function fitText(ctx: CanvasRenderingContext2D, text: string, x: number, y: numb
         s -= 1;
     } while (ctx.measureText(text).width > max && s > 10);
     ctx.fillText(text, x, y);
+}
+
+/** Bounds of what you can actually see: hidden parts (smoke points, switched-off beams) don't pull the camera off-center */
+function visibleBox(root: THREE.Object3D) {
+    const box = new THREE.Box3();
+    const part = new THREE.Box3();
+    root.updateWorldMatrix(true, true);
+    const visit = (o: THREE.Object3D) => {
+        if (!o.visible) return;
+        const mesh = o as THREE.Mesh;
+        // glow halos (additive planes) are bigger than the thing glowing; leave them out too
+        const glow = mesh.isMesh && !Array.isArray(mesh.material) && mesh.material.blending === THREE.AdditiveBlending;
+        if (mesh.isMesh && mesh.geometry && !glow) {
+            if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+            part.copy(mesh.geometry.boundingBox as THREE.Box3).applyMatrix4(mesh.matrixWorld);
+            box.union(part);
+        }
+        o.children.forEach(visit);
+    };
+    visit(root);
+    return box.isEmpty() ? new THREE.Box3().setFromObject(root) : box;
 }

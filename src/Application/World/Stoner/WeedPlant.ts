@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import Application from '../../Application';
 import { canvasTexture, FLOOR_Y, inspectable, mergeBufferGeometries, range, shadows } from './props';
+import { menu } from './ContextMenu';
 
 /**
  * Replaces the baked house plant next to the desk with a cannabis plant in a
@@ -24,6 +25,13 @@ export default class WeedPlant {
         this.group.position.set(3650, FLOOR_Y, -50);
         this.build();
         this.scene.add(inspectable(shadows(this.group), new THREE.Vector3(-0.4, 0.15, 1)));
+        this.group.userData.menuTitle = 'The plant';
+        menu(this.group, [
+            { label: 'Water it', say: ['Glug glug. It perks up.', 'Not too much. You learned that the hard way.'] },
+            { label: 'Check the trichomes', say: ['Mostly cloudy, a little amber. Two more weeks.', 'Frosty. Very frosty.'] },
+            { label: 'Talk to it', say: ['"You\'re doing amazing, sweetie."', 'It seems to appreciate the CO2.'] },
+            { label: 'Harvest it', say: ['Not yet. Patience.', "Ibby said don't touch it."] },
+        ]);
     }
 
     build() {

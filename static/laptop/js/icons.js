@@ -42,6 +42,15 @@
         code: s('<rect x="5" y="7" width="38" height="34" rx="5" fill="#24292e"/><path d="M18 17l-7 7 7 7M30 17l7 7-7 7" stroke="#7dff7a" stroke-width="3" fill="none" stroke-linecap="round"/>'),
         paper: s('<rect x="8" y="6" width="32" height="36" rx="2" fill="#f5eedb"/><rect x="12" y="10" width="24" height="6" fill="#1b1510"/><path d="M12 21h11M12 26h11M12 31h11M12 36h24" stroke="#7a6a50" stroke-width="2"/><rect x="26" y="20" width="10" height="12" fill="#c43d3d"/>')
     };
+    var now = new Date();
+    var mon = now.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+    window.ICONS.calendar = s('<rect x="3" y="3" width="42" height="42" rx="10" fill="#ffffff"/><rect x="3.5" y="3.5" width="41" height="41" rx="9.5" fill="none" stroke="rgba(0,0,0,.12)"/>' +
+        '<path d="M3 13a10 10 0 0110-10h22a10 10 0 0110 10v1H3z" fill="#ff3b30"/>' +
+        '<text x="24" y="12.2" text-anchor="middle" font-family="Inter Variable,Helvetica,Arial,sans-serif" font-size="7.5" font-weight="700" fill="#fff">' + mon + '</text>' +
+        '<text x="24" y="37" text-anchor="middle" font-family="Inter Variable,Helvetica,Arial,sans-serif" font-size="21" font-weight="400" fill="#222">' + now.getDate() + '</text>');
+    window.ICONS.wallpapers = s('<rect x="3" y="3" width="42" height="42" rx="10" fill="#1b1040"/>' +
+        '<g transform="translate(24 43) scale(.72)"><path d="M0 0C9-8 9-24 2-38C-5-24-7-8 0 0z" fill="#3fbf6a"/><path d="M0 0C10-6 18-16 22-28C10-22 2-12 0 0z" fill="#a46bff"/><path d="M0 0C-10-6-18-16-22-28C-10-22-2-12 0 0z" fill="#8a5cff"/><path d="M0 0C12-2 22-8 28-16C16-14 6-8 0 0z" fill="#2f8a55"/><path d="M0 0C-12-2-22-8-28-16C-16-14-6-8 0 0z" fill="#5bd16a"/></g>' +
+        '<rect x="3.5" y="3.5" width="41" height="41" rx="9.5" fill="none" stroke="rgba(255,255,255,.18)"/>');
     window.ICONS.explorer = window.ICONS.finder;
     window.ICONS.notepad = window.ICONS.notes;
 })();

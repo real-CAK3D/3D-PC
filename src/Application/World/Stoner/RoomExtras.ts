@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import Application from '../../Application';
 import { canvasTexture, CM, FLOOR_Y, inspectable, leafPath, mat, range, shadows, woodTexture } from './props';
+import { menu } from './ContextMenu';
 import { ROOM, WINDOW } from './Room';
 import { newsStand, StashItem } from './stash';
 import { CameraKey } from '../../Camera/Camera';
@@ -203,6 +204,13 @@ export default class RoomExtras {
         this.scene.add(shadows(this.door));
         // no close-up for the door: click it to swing it open, then click the doorway
         this.clickable(this.door, () => (this.doorOpen = !this.doorOpen), null);
+        this.door.userData.menuTitle = 'Door';
+        menu(this.door, () => [
+            { label: this.doorOpen ? 'Close it' : 'Open it', run: () => (this.doorOpen = !this.doorOpen) },
+            { label: 'Go to the NewsStand', run: () => this.walkToNewsStand() },
+            { label: 'Knock', say: ['*knock knock* ...nobody.', '"Occupied!"'] },
+            { label: 'Lock it', say: ['Click. Nobody is getting in now.', "There's no lock. Never was."] },
+        ]);
     }
 
     setWindow() {
@@ -293,6 +301,12 @@ export default class RoomExtras {
         pinup.position.set(ROOM.right - 60, 2600, 9000);
         pinup.rotation.y = -Math.PI / 2;
         this.scene.add(inspectable(pinup, new THREE.Vector3(-1, 0, 0)));
+        pinup.userData.menuTitle = 'Pin-up';
+        menu(pinup, [
+            { label: 'Look closer', run: () => this.application.world.deskStash.inspect(pinup) },
+            { label: 'Straighten it', say: ['A little to the left... perfect.', 'It was already straight.'] },
+            { label: 'Who drew this?', say: 'Art by @elrokk86.' },
+        ]);
         // the frame sits between the wall and the picture so their faces never touch
         const frame = new THREE.Mesh(new THREE.BoxGeometry(30, 3240, 2520), mat.std('#c9a23a', 0.35, 0.8));
         frame.position.set(ROOM.right - 30, 2600, 9000);
@@ -506,6 +520,17 @@ export default class RoomExtras {
         this.scene.add(shadows(g, true, false));
         // the fan itself responds to clicks too: speed through 0-3
         this.clickable(g, () => this.cycleFan(), new THREE.Vector3(0.3, -1, 0.5));
+        g.userData.menuTitle = 'Ceiling fan';
+        const setFan = (n: number) => {
+            while (this.fanSpeed !== n) this.cycleFan();
+        };
+        menu(g, () => [
+            { label: 'Off', run: () => setFan(0) },
+            { label: 'Low', run: () => setFan(1) },
+            { label: 'Medium', run: () => setFan(2) },
+            { label: 'High', run: () => setFan(3) },
+            { label: this.lightOn ? 'Light off' : 'Light on', run: () => this.setLight(!this.lightOn) },
+        ]);
     }
 
     setSwitch() {
@@ -633,6 +658,12 @@ export default class RoomExtras {
             if (!stash) return;
             if (stash) stash.loadOnPc(myPetId, 'desk');
         });
+        g.userData.menuTitle = 'Dog bowls';
+        menu(g, [
+            { label: 'Open MyPetID', run: () => this.application.world.deskStash.loadOnPc(myPetId, 'desk') },
+            { label: 'Fill the water', say: ['Fresh water. Good human.', 'Splash. Half of it is on the floor.'] },
+            { label: 'Squeak the bone', say: ['*SQUEAK*', 'Somewhere a dog lifts its head.'] },
+        ]);
     }
 
     setLight(on: boolean) {

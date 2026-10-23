@@ -21,6 +21,8 @@ import DeskInputs from './Stoner/DeskInputs';
 import GamingChair from './Stoner/GamingChair';
 import Toolbox from './Stoner/Toolbox';
 import Laptop from './Stoner/Laptop';
+import Phone from './Stoner/Phone';
+import ContextMenu from './Stoner/ContextMenu';
 import { ROOM } from './Stoner/Room';
 import * as THREE from 'three';
 export default class World {
@@ -49,6 +51,8 @@ export default class World {
     gamingChair: GamingChair;
     toolbox: Toolbox;
     laptop: Laptop;
+    phone: Phone;
+    contextMenu: ContextMenu;
 
     constructor() {
         this.application = new Application();
@@ -77,11 +81,13 @@ export default class World {
         this.entertainment = new Entertainment();
         this.gameMode = new GameMode(this.entertainment);
         this.laptop = new Laptop(this.entertainment);
+        this.phone = new Phone(this.lounge.phoneSpot, this.entertainment);
         this.roomExtras = new RoomExtras();
         this.toolbox = new Toolbox();
         this.outdoors = new Outdoors();
         this.deskStash = new DeskStash();
         this.deskInputs = new DeskInputs();
+        this.contextMenu = new ContextMenu();
 
         this.smoke = new Smoke();
         [...this.room.smokePoints, ...this.lounge.smokePoints].forEach((p) => this.smoke.addWisp(p));
@@ -104,6 +110,7 @@ export default class World {
         if (this.gamingChair) this.gamingChair.update();
         if (this.toolbox) this.toolbox.update();
         if (this.laptop) this.laptop.update();
+        if (this.phone) this.phone.update();
         if (this.smoke) this.smoke.update();
         if (this.monitorScreen) this.monitorScreen.update();
         if (this.environment) this.environment.update();
