@@ -74,36 +74,76 @@
       <div class="toast" id="toast" role="status"></div>
     </section>
 
-    <!-- ======================= INNER SCREEN (hacker) ======================= -->
+    <!-- ======================= INNER SCREEN (One UI, unfolded) ======================= -->
     <section id="inner" class="screen" aria-label="Inner screen">
-      <div class="h-top">
-        <span class="brand">CAK3D<b>//</b>silk</span>
-        <span class="spacer"></span>
-        <span class="stat">node <b id="hNode">silk-00</b></span>
-        <span class="stat">load <b id="hLoad">0.00</b></span>
-        <span class="stat"><span id="hClock">--:--</span></span>
+      <div class="statusbar istatus">
+        <span data-time>--:--</span>
+        <span class="right">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 20h3v-5H2v5zm5 0h3V9H7v11zm5 0h3V4h-3v16zm5 0h3v-8h-3v8z"/></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M1 9l2 2c5-5 13-5 18 0l2-2C17 2 7 2 1 9zm8 8l3 3 3-3c-1.6-1.7-4.4-1.7-6 0zm-4-4l2 2c2.8-2.8 7.2-2.8 10 0l2-2c-3.9-3.9-10.1-3.9-14 0z"/></svg>
+          <span class="batt">84%</span>
+          <svg viewBox="0 0 26 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="1" y="6" width="20" height="12" rx="3" stroke-width="2"/><rect x="3" y="8" width="14" height="8" rx="1" fill="currentColor"/><path d="M23 10v4" stroke-width="2" stroke-linecap="round"/></svg>
+        </span>
       </div>
-      <div class="h-main">
-        <div class="launcher" id="launcher">
-          <h1>// tool deck</h1>
-          <p class="sub">ESP32 &amp; Seeed XIAO projects &middot; display + links only, never a live attack</p>
-          <div class="tool-grid" id="toolGrid"></div>
+
+      <!-- lock -->
+      <div id="iLock" class="ilock" tabindex="0" aria-label="Lock screen. Press Enter or swipe up to unlock">
+        <div class="ilock-top">
+          <div class="ilock-time" data-time>--:--</div>
+          <div class="ilock-date" data-date>&mdash;</div>
+          <div class="ilock-wx"><span class="wx-ico" data-wx-ico aria-hidden="true"></span>
+            <span><b data-wx-temp>--&deg;</b> <small data-wx-desc>Lewiston, ME</small></span></div>
         </div>
-        <div class="detail" id="detail" aria-hidden="true"></div>
-        <div class="terminal" id="terminal" aria-hidden="true">
-          <div class="term-bar">
-            <button class="d-back" id="termBack">&lsaquo; deck</button>
-            <span class="dot" style="background:#ff4d6d"></span><span class="dot" style="background:#ffd23d"></span><span class="dot" style="background:#35e07a"></span>
-            <span class="t">silk-console &mdash; cak3d@silk</span>
-          </div>
-          <div class="term-out" id="termOut"></div>
-          <div class="term-chips" id="termChips"></div>
-          <div class="term-in">
-            <span class="ps">cak3d@silk:~$</span>
-            <input id="termInput" autocomplete="off" spellcheck="false" aria-label="terminal input" />
-          </div>
+        <div class="ilock-bottom">
+          <button class="ilock-short" id="iLockPhone" aria-label="Phone"></button>
+          <button class="lock-unlockbtn" id="iUnlockBtn">Swipe up to unlock</button>
+          <button class="ilock-short" id="iLockCam" aria-label="Camera"></button>
         </div>
       </div>
+
+      <!-- home -->
+      <div id="iHome" class="i-home" aria-hidden="true">
+        <div class="i-widgets">
+          <div class="widget w-clock">
+            <div class="w-time" data-time>--:--</div>
+            <div class="w-date" data-date>&mdash;</div>
+            <div class="w-wx"><span class="wx-ico" data-wx-ico aria-hidden="true"></span>
+              <div><b data-wx-temp>--&deg;</b><small data-wx-desc>Lewiston, ME</small><small class="w-next" data-wx-next></small></div></div>
+          </div>
+          <div class="widget w-cal" id="wCal" aria-label="Calendar"></div>
+        </div>
+        <div class="i-grid" id="iGrid"></div>
+        <div class="i-pager" aria-hidden="true"><i class="on"></i><i></i></div>
+      </div>
+
+      <!-- app drawer -->
+      <div id="iDrawer" class="i-drawer" aria-hidden="true" aria-label="Apps">
+        <div class="i-search"><input id="iSearch" placeholder="Search apps" aria-label="Search apps" autocomplete="off" /></div>
+        <div class="i-grid drawer-grid" id="iDrawerGrid"></div>
+      </div>
+
+      <!-- folder -->
+      <div id="iFolder" class="i-folder" aria-hidden="true">
+        <div class="folder-panel" role="dialog" aria-label="Maker folder">
+          <div class="folder-title">Maker</div>
+          <div class="folder-grid" id="iFolderGrid"></div>
+        </div>
+      </div>
+
+      <!-- full-screen One UI app -->
+      <div id="iApp" class="ou-app" aria-hidden="true">
+        <div class="ou-bar">
+          <button class="ou-back" id="iAppBack" aria-label="Back"></button>
+          <span class="ou-bar-title" id="iAppTitle"></span>
+          <span class="grow"></span>
+          <button class="ou-act" id="iAppAct" hidden></button>
+        </div>
+        <div class="ou-scroll" id="iAppBody"></div>
+      </div>
+
+      <!-- Fold taskbar -->
+      <nav class="taskbar" id="taskbar" aria-label="Taskbar"></nav>
+      <div class="toast" id="iToast" role="status"></div>
     </section>
   </div>
 
