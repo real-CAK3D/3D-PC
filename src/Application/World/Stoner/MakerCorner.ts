@@ -93,13 +93,13 @@ const BOARDS: Board[] = [
         note: 'Sub-GHz deck. Runs the Marauder / Bruce builds.',
     },
     {
-        name: 'Biscuit board',
-        sub: 'ESP32 · Biscuit fw',
-        w: 4.6,
-        d: 2.6,
+        name: 'Biscuit (Xteink X4)',
+        sub: 'ESP32-C3 · e-ink',
+        w: 7,
+        d: 4.4,
         color: '#5a3a1a',
         led: '#ff9b3d',
-        note: 'An ESP32 flashed with the Biscuit firmware. Pairs with the Biscuit app on the phone.',
+        open: { name: 'Biscuit', description: "Biscuit firmware for the Xteink X4 ESP32-C3 e-ink reader.", url: 'https://github.com/yattsu/biscuit', repo: 'https://github.com/yattsu/biscuit' },
     },
 ];
 

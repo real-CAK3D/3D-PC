@@ -59,6 +59,8 @@
     map: svg('<path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/>'),
     ghost: svg('<path d="M5 20V11a7 7 0 0 1 14 0v9l-2.3-1.6L14.5 20l-2.5-1.6L9.5 20l-2.2-1.6z"/><circle cx="9.5" cy="10" r="1" fill="currentColor"/><circle cx="14.5" cy="10" r="1" fill="currentColor"/>'),
     chip: svg('<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 7V4M14 7V4M10 20v-3M14 20v-3M7 10H4M7 14H4M20 10h-3M20 14h-3"/>'),
+    cookie: svg('<path d="M20.5 11.5A8.5 8.5 0 1 1 12 3a3 3 0 0 0 3 3 3 3 0 0 0 3 3 3 3 0 0 0 2.5 2.5z"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="13" cy="14" r="1" fill="currentColor"/><circle cx="16" cy="9.5" r="1" fill="currentColor"/><circle cx="9.5" cy="15" r="1" fill="currentColor"/>'),
+    mesh: svg('<circle cx="12" cy="5" r="2"/><circle cx="5" cy="17" r="2"/><circle cx="19" cy="17" r="2"/><circle cx="12" cy="13" r="2"/><path d="M12 7v4M10.5 11.5L6.5 15.5M13.5 11.5l4 4M7 17h10"/>'),
     // drawn glyphs for the room's apps (inner screen)
     spider: svg('<circle cx="12" cy="13.5" r="3"/><circle cx="12" cy="9" r="1.8"/><path d="M9 12.5L4 9.5M9 14.5l-5 1M9.6 16L6 20M15 12.5l5-3M15 14.5l5 1M14.4 16L18 20"/>'),
     house: svg('<path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-6h4v6"/>'),
@@ -358,7 +360,7 @@
   function closeApp() { state.app = null; hideView(cur()); buildTaskbar(); }
   function hideView(s) {
     s.view.classList.remove('open', 'scrolled'); s.view.setAttribute('aria-hidden', 'true');
-    s.body.innerHTML = ''; stopUptime(); termOut = null;
+    s.body.innerHTML = ''; stopUptime(); stopTermLive(); termOut = null; termInput = null; termWrap = null;
     if (s.key === 'inner') innerScreen.classList.remove('in-app');
   }
   function subtitle(app) {
@@ -440,6 +442,19 @@
       '<span class="ax v"></span><span class="ax h"></span><span class="sweep"></span><span class="me"></span>' + blips + '</div>' +
       '<div class="ou-legend"><span><i style="background:#fff;border:1px solid #999"></i>You</span><span><i style="background:#ff6b7d"></i>ALPR camera (demo)</span></div>' +
       '<p class="ou-note">Passive sweep · simulated blips</p></div>' : '';
+    var mesh = t.mesh ? (function () {
+      var nodes = [
+        ['!8f501778', 'cak3d-xiao', 'XIAO S3', '0 hop', '—'],
+        ['!a21c4e90', 'porch-beam', 'T-Beam', '1 hop', '-41 dBm'],
+        ['!7de0121a', 'shed-lora', 'T-LoRa', '2 hop', '-78 dBm'],
+        ['!3b9044c5', 'truck-diy', 'DIY V1', '1 hop', '-63 dBm'],
+        ['!c0ffee42', 'relay-hill', 'Heltec', '2 hop', '-85 dBm']
+      ];
+      var rows = nodes.map(function (n) {
+        return '<div class="ou-row"><span><i class="ou-dot"></i>' + n[1] + ' <small style="opacity:.6">' + n[0] + '</small></span><b>' + n[2] + ' · ' + n[3] + '</b></div>';
+      }).join('');
+      return '<div class="ou-card"><h3>Mesh nodes (simulated)</h3>' + rows + '<p class="ou-note">LongFast · US · off-grid LoRa</p></div>';
+    })() : '';
     ctx.host.innerHTML =
       '<div class="ou-two"><div>' +
         '<div class="ou-card"><div class="ou-hero"><span class="icon" style="background:' + grad(t.color) + '">' + ICON[t.glyph] + '</span>' +
@@ -451,7 +466,7 @@
         '<div class="ou-card"><h3>Features</h3><ul class="ou-list">' + feats + '</ul></div>' +
       '</div><div>' +
         '<div class="ou-card"><h3>Status</h3>' + stats + '<div class="ou-row"><span><i class="ou-dot"></i>uptime</span><b class="ou-up">00:00:00</b></div></div>' +
-        radar +
+        radar + mesh +
         '<p class="ou-note">Display and links only. Nothing here controls a device or touches a network.</p>' +
       '</div></div>';
     startUptime(ctx.q('.ou-up'), uptimeBase[t.id]);
@@ -607,79 +622,423 @@
     });
   }
 
-  /* ---- Terminal app (Termux-like). Output persists across fold/unfold. ---- */
-  var termOut = null;
-  function termPrint(cls, text) {
-    state.term.push([cls, text]);
-    if (termOut) { termOut.appendChild(el('div', 'ln ' + cls, text)); termOut.scrollTop = termOut.scrollHeight; }
+  /* ---- Terminal app: Kali NetHunter style. Real lookups use only free,
+     keyless, CORS-friendly APIs; the offensive tools print clearly-simulated
+     [sim] output and never touch a real radio or network. Scrollback persists
+     across fold/unfold; live loops (boot/htop/journalctl) run only while on
+     screen and are stopped by hideView(). ---- */
+  var termOut = null, termInput = null, termWrap = null;
+  var termAnim = null, termBootTimers = [], termBusy = false, termLiveType = null, histIdx = -1;
+  var TERM_ALIAS = { flock: 'WhatTheFlock', whattheflock: 'WhatTheFlock', marauder: 'ESP32 Marauder', biscuit: 'Biscuit', meshtastic: 'Meshtastic', mesh: 'Meshtastic', espwatch: 'ESP-Watch', cydbuddy: 'CYD-Buddy', spac3ghost: 'Spac3-Gh0st' };
+  var PROMPT_TOP = '┌──(<span class="u">cak3d㊗fold</span>)-[<span class="p">~</span>]';
+  var PROMPT_BOT = '└─$';
+  var KALI_DRAGON = [
+    '            ,.....,',
+    '         .d$$$$$$$$b.',
+    '       .$$$$$$$$$$$$$.',
+    '      $$$$$P\'   \'?$$$$',
+    '     $$$$\'    .    ?$$L',
+    '     $$$   .d$$b.   $$$',
+    '     $$$  $$$  $$$  $$$',
+    '     ?$$  \'$$$$$P\'  $$P',
+    '      ?$$.       .d$P',
+    '       \'?$$$$$$$$$P\'',
+    '     K A L I   L I N U X'
+  ];
+  var REPO_TOKENS = ['CAK3D-Crawler', 'Scanimal', 'HomeInventory', 'MapPI3', 'Torque-Timer', 'WhatTheFlock', 'ESP-Watch', 'CYD-Buddy', 'Hack-Safe-v2', 'Spac3-Gh0st', 'NeuroLab'];
+
+  function out(cls, text, html) {
+    state.term.push({ c: cls || '', t: text, h: !!html });
+    if (state.term.length > 600) state.term = state.term.slice(-600);
+    if (termOut) { var d = el('div', 'ln ' + (cls || '')); if (html) d.innerHTML = text; else d.textContent = text; termOut.appendChild(d); termOut.scrollTop = termOut.scrollHeight; }
   }
+  function outLines(cls, s) { String(s).split('\n').forEach(function (l) { out(cls, l); }); }
+  function clearScreen() { state.term = []; if (termOut) termOut.innerHTML = ''; }
+  function echoPrompt(cmd) { out('p1', PROMPT_TOP, true); out('p2', PROMPT_BOT + ' ' + esc(cmd), true); }
+  function stopTermLive() { if (termAnim) { clearInterval(termAnim); termAnim = null; } termBootTimers.forEach(clearTimeout); termBootTimers = []; termBusy = false; termLiveType = null; }
+
   function stubTerminal(ctx) {
-    if (!state.term) {
-      state.term = [];
-      termPrint('ok', 'Welcome to CAK3D Terminal (fold edition).');
-      termPrint('dim', 'Type `help`. Everything here is simulated: no real radio, no network actions.');
-    }
-    var wrap = el('div', 'termapp');
-    wrap.innerHTML = '<div class="term-tabs"><span>~ silk</span><span class="off">+</span></div><div class="term-out" aria-live="polite"></div>' +
-      '<div class="term-keys"></div><div class="term-in"><span class="ps">~ $</span><input aria-label="Terminal input" autocomplete="off" spellcheck="false" autocapitalize="off" /></div>';
+    if (!state.term) state.term = [];
+    if (!state.termHist) state.termHist = [];
+    var wrap = el('div', 'termapp'); termWrap = wrap;
+    wrap.tabIndex = -1;
+    wrap.innerHTML =
+      '<div class="term-tabs"><span>cak3d@fold: ~</span><span class="off">+</span></div>' +
+      '<div class="term-out" aria-live="polite"></div>' +
+      '<div class="term-keys"></div>' +
+      '<div class="kali-ps"><div class="p1">' + PROMPT_TOP + '</div>' +
+        '<div class="p2"><span class="ar">' + PROMPT_BOT + '</span>' +
+        '<input aria-label="Terminal input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" /></div></div>';
     ctx.host.appendChild(wrap);
-    termOut = $('.term-out', wrap);
-    state.term.forEach(function (l) { termOut.appendChild(el('div', 'ln ' + l[0], l[1])); });
+    termOut = $('.term-out', wrap); termInput = $('input', wrap);
+    state.term.forEach(function (l) { var d = el('div', 'ln ' + l.c); if (l.h) d.innerHTML = l.t; else d.textContent = l.t; termOut.appendChild(d); });
     termOut.scrollTop = termOut.scrollHeight;
-    var input = $('.term-in input', wrap), keys = $('.term-keys', wrap);
-    ['help', 'ls', 'scan', 'flock', 'neofetch', 'clear'].forEach(function (c) {
+    var keys = $('.term-keys', wrap);
+    ['help', 'neofetch', 'htop', 'nmap', 'ip a', 'clear'].forEach(function (c) {
       var b = el('button', null, c); b.type = 'button';
-      b.addEventListener('click', function () { runLine(c); input.focus(); });
+      b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      b.addEventListener('click', function () { if (termBusy) return; runLine(c); termInput.focus(); });
       keys.appendChild(b);
     });
-    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { var v = input.value; input.value = ''; runLine(v); } });
-    if (ctx.user) setTimeout(function () { if (input.isConnected) input.focus(); }, 320);
+    termInput.addEventListener('keydown', onTermKey);
+    if (!state.termBooted) bootSeq();
+    else if (ctx.user) setTimeout(function () { if (termInput && termInput.isConnected) termInput.focus(); }, 320);
   }
-  function stagger(arr, each, done) { var i = 0; (function step() { if (i >= arr.length) return done && done(); each(arr[i++]); setTimeout(step, 240); })(); }
+
+  /* boot: fake Kali boot, once per session; skippable with any key/click; `reboot` replays */
+  function bootSeq() {
+    clearScreen();
+    termWrap.classList.add('booting'); termBusy = true; termLiveType = 'boot';
+    var lines = [
+      ['dim', '[    0.000000] Booting Kali NetHunter on CAK3D//fold'],
+      ['dim', '[    0.000000] Linux version 6.8.0-kali3-arm64 (cak3d@fold) (gcc 13.2.0)'],
+      ['dim', '[    0.184913] efi: EFI v2.7 by CAK3D UI'],
+      ['dim', '[    0.512004] Memory: 7168M available'],
+      ['dim', '[    0.904331] systemd[1]: systemd 255 running in system mode'],
+      ['ok', '[  OK  ] Mounted /boot and /data'],
+      ['ok', '[  OK  ] Started udev Kernel Device Manager'],
+      ['ok', '[  OK  ] Reached target Local File Systems'],
+      ['ok', '[  OK  ] Started NetworkManager'],
+      ['ok', '[  OK  ] Reached target Network'],
+      ['ok', '[  OK  ] Started OpenSSH server'],
+      ['ok', '[  OK  ] Started Kali NetHunter services'],
+      ['ok', '[  OK  ] Started Metasploit boot gadget (sim)'],
+      ['ok', '[  OK  ] Reached target Multi-User System'],
+      ['', '']
+    ];
+    out('dragon', KALI_DRAGON.join('\n'));
+    out('ok', 'Kali GNU/Linux Rolling (2026.3)  nethunter tty1');
+    out('', '');
+    var i = 0;
+    function finish() {
+      termBootTimers.forEach(clearTimeout); termBootTimers = [];
+      while (i < lines.length) { out(lines[i][0], lines[i][1]); i++; }
+      out('login', 'fold login: cak3d');
+      out('login', 'Password: ••••••••');
+      out('', '');
+      out('ok', 'Welcome to Kali NetHunter — CAK3D//fold. Type `help` to begin.');
+      out('dim', 'Offensive tools here are simulated ([sim]); no real radio or network activity.');
+      out('', '');
+      state.termBooted = true; termBusy = false; termLiveType = null;
+      if (termWrap) termWrap.classList.remove('booting');
+      if (termInput && termInput.isConnected) termInput.focus();
+      wrap0.removeEventListener('keydown', skip); wrap0.removeEventListener('click', skip);
+    }
+    function step() { if (i >= lines.length) return finish(); out(lines[i][0], lines[i][1]); i++; termBootTimers.push(setTimeout(step, 85 + Math.random() * 120)); }
+    var wrap0 = termWrap;
+    function skip() { if (termLiveType === 'boot') finish(); }
+    // attach on the next tick so the Enter/click that launched this boot doesn't instantly skip it
+    termBootTimers.push(setTimeout(function () { wrap0.addEventListener('keydown', skip); wrap0.addEventListener('click', skip); wrap0.focus(); }, 60));
+    termBootTimers.push(setTimeout(step, 400));
+  }
+
+  function onTermKey(e) {
+    if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
+      e.preventDefault();
+      if (termBusy) { stopTermLive(); out('warn', '^C'); }
+      else { echoPrompt((termInput.value || '') + '^C'); termInput.value = ''; histIdx = -1; }
+      return;
+    }
+    if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) { e.preventDefault(); clearScreen(); return; }
+    if (termBusy) {
+      if ((e.key === 'q' || e.key === 'Q') && (termLiveType === 'htop')) { e.preventDefault(); stopTermLive(); out('dim', '[sim] htop exited'); }
+      return;
+    }
+    if (e.key === 'Enter') { e.preventDefault(); runLine(termInput.value); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); histNav(-1); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); histNav(1); return; }
+    if (e.key === 'Tab') { e.preventDefault(); tabComplete(); return; }
+  }
+  function histNav(dir) {
+    var h = state.termHist; if (!h.length) return;
+    if (histIdx === -1) histIdx = h.length;
+    histIdx = Math.max(0, Math.min(h.length, histIdx + dir));
+    termInput.value = histIdx >= h.length ? '' : h[histIdx];
+    setTimeout(function () { try { termInput.setSelectionRange(termInput.value.length, termInput.value.length); } catch (e) {} }, 0);
+  }
+  function tabComplete() {
+    var v = termInput.value, parts = v.split(/\s+/), pool;
+    if (parts.length <= 1) pool = CMD_NAMES;
+    else if (['open', 'run', 'status', 'cat'].indexOf(parts[0]) >= 0) pool = APP_TOKENS;
+    else if (parts[0] === 'gh') pool = REPO_TOKENS;
+    else return;
+    var frag = parts[parts.length - 1].toLowerCase();
+    var hits = pool.filter(function (x) { return x.toLowerCase().indexOf(frag) === 0; });
+    if (!hits.length) return;
+    if (hits.length === 1) { parts[parts.length - 1] = hits[0]; termInput.value = parts.join(' ') + ' '; return; }
+    var cp = hits.reduce(function (a, b) { var i = 0; while (i < a.length && a[i].toLowerCase() === b[i].toLowerCase()) i++; return a.slice(0, i); });
+    echoPrompt(v); out('', hits.join('   '));
+    parts[parts.length - 1] = cp; termInput.value = parts.join(' ');
+  }
+
+  function runLine(raw) {
+    if (termBusy) return;
+    var line = raw == null ? '' : raw, trimmed = line.trim();
+    echoPrompt(line);
+    if (termInput) termInput.value = '';
+    if (trimmed) { state.termHist.push(trimmed); if (state.termHist.length > 100) state.termHist.shift(); }
+    histIdx = -1;
+    if (!trimmed) return;
+    var parts = trimmed.split(/\s+/), cmd = parts.shift().toLowerCase(), args = parts;
+    if (CMDS[cmd]) { CMDS[cmd](args, args.join(' ')); return; }
+    var app = termLaunch(cmd);
+    if (app) { out('ok', 'launching ' + app.name + '…'); setTimeout(function () { openApp(app, true); }, 300); return; }
+    out('err', 'zsh: command not found: ' + cmd);
+  }
+  function termLaunch(name) { var k = (name || '').toLowerCase(); return findApp(TERM_ALIAS[k] || name); }
+  function stagger(arr, each, done, ms) { var i = 0; (function step() { if (i >= arr.length) return done && done(); each(arr[i++]); termBootTimers.push(setTimeout(step, ms || 220)); })(); }
+  function pad(s, n) { s = String(s); return (s + '                         ').slice(0, n); }
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+
+  /* ---- live loops: htop (replace-in-place) and journalctl -f (append) ---- */
+  var PROCS = [
+    ['1', 'root', 'systemd'], ['412', 'root', 'NetworkManager'], ['517', 'cak3d', 'zsh'],
+    ['640', 'cak3d', 'silk-console'], ['701', 'root', 'bettercap'], ['744', 'cak3d', 'python3 meshtastic'],
+    ['802', 'cak3d', 'node arachnotes'], ['905', 'root', 'wpa_supplicant'], ['977', 'cak3d', 'htop']
+  ];
+  function startHtop() {
+    stopTermLive(); termBusy = true; termLiveType = 'htop';
+    var block = el('div', 'ln live'); if (termOut) termOut.appendChild(block);
+    var frame = function () {
+      if (!termOut || !block.isConnected) { stopTermLive(); return; }
+      var load = [rnd(0, 2), rnd(0, 2), rnd(0, 2)].map(function (x) { return x.toFixed(2); }).join(' ');
+      var bars = '';
+      for (var c = 0; c < 4; c++) { var p = Math.floor(rnd(2, 95)), f = Math.round(p / 10); bars += '  CPU' + c + ' [' + '|'.repeat(f) + ' '.repeat(10 - f) + pad(p + '%', 5) + ']\n'; }
+      var rows = PROCS.map(function (pr) { return '  ' + pad(pr[0], 6) + pad(pr[1], 7) + pad(rnd(0, 40).toFixed(1), 6) + pad(rnd(0, 12).toFixed(1), 6) + pr[2]; }).join('\n');
+      block.textContent = '[sim] htop — press q to quit\n' + bars +
+        '  Tasks: ' + PROCS.length + ', 2 running   Load avg: ' + load + '   Uptime: ' + (3 + Math.floor(rnd(0, 20))) + ':14:0' + Math.floor(rnd(0, 9)) + '\n\n' +
+        '  ' + pad('PID', 6) + pad('USER', 7) + pad('CPU%', 6) + pad('MEM%', 6) + 'COMMAND\n' + rows;
+      termOut.scrollTop = termOut.scrollHeight;
+    };
+    frame(); termAnim = setInterval(frame, 1000);
+  }
+  function startLog() {
+    stopTermLive(); termBusy = true; termLiveType = 'log';
+    out('dim', '[sim] journalctl -f  — press Ctrl+C to stop');
+    var svcs = ['NetworkManager', 'kernel', 'wpa_supplicant', 'bluetoothd', 'silk-console', 'meshtastic', 'sshd'];
+    var msgs = ['device wlan0: link up', 'authenticated with ap', 'scan completed: 14 results', 'BLE adv rx from CYD-Buddy', 'mesh node !a21c4e90 seen (1 hop)', 'session opened for user cak3d', 'heartbeat ok'];
+    termAnim = setInterval(function () {
+      if (!termOut) { stopTermLive(); return; }
+      var now = new Date(), t = now.toTimeString().slice(0, 8);
+      out('dim', t + ' fold ' + svcs[Math.floor(Math.random() * svcs.length)] + ': ' + msgs[Math.floor(Math.random() * msgs.length)]);
+    }, 850);
+  }
+
+  /* ---- real, keyless, CORS-friendly lookups (graceful on failure) ---- */
+  function jget(url, opts) { return fetch(url, opts).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }); }
+  function cmdWiki(args) {
+    var term = args.join(' ').trim(); if (!term) { out('', 'usage: wiki <term>'); return; }
+    out('dim', 'fetching wikipedia summary…');
+    jget('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(term.replace(/\s+/g, '_')))
+      .then(function (j) {
+        if (j.type && /disambiguation/.test(j.type)) { out('warn', j.title + ': disambiguation page'); return; }
+        out('ok', j.title); if (j.description) out('dim', j.description);
+        outLines('', wrapText(j.extract || '(no summary)', 76));
+        if (j.content_urls && j.content_urls.desktop) out('dim', j.content_urls.desktop.page);
+      })
+      .catch(function () { out('err', 'wiki: lookup failed (offline or no article for "' + term + '")'); });
+  }
+  function cmdDns(args) {
+    var host = args[0]; if (!host) { out('', 'usage: dns <host> [type]'); return; }
+    var type = (args[1] || 'A').toUpperCase();
+    out('dim', 'querying dns.google for ' + host + ' ' + type + '…');
+    jget('https://dns.google/resolve?name=' + encodeURIComponent(host) + '&type=' + type)
+      .then(function (j) {
+        if (!j.Answer || !j.Answer.length) { out('warn', ';; no records (status ' + j.Status + ')'); return; }
+        out('ok', ';; ANSWER (' + j.Answer.length + ')');
+        j.Answer.forEach(function (a) { out('', '  ' + pad(a.name, 28) + pad('TTL ' + a.TTL, 10) + a.data); });
+      })
+      .catch(function () { out('err', 'dns: query failed'); });
+  }
+  function cmdIp() {
+    out('dim', 'resolving public ip…');
+    jget('https://api.ipify.org?format=json')
+      .then(function (j) { out('ok', 'public ip: ' + j.ip); })
+      .catch(function () { out('err', 'ip: could not reach ipify'); });
+  }
+  function cmdGh(args) {
+    var repo = args[0]; if (!repo) { out('', 'usage: gh <repo>   (under real-CAK3D)'); return; }
+    out('dim', 'GET api.github.com/repos/real-CAK3D/' + repo + '…');
+    jget('https://api.github.com/repos/real-CAK3D/' + encodeURIComponent(repo))
+      .then(function (j) {
+        out('ok', j.full_name + (j.fork ? ' (fork)' : ''));
+        if (j.description) out('dim', j.description);
+        out('', '  ★ ' + j.stargazers_count + '   ⎇ ' + j.forks_count + '   lang: ' + (j.language || 'n/a'));
+        out('', '  pushed: ' + new Date(j.pushed_at).toLocaleString() + '   open issues: ' + j.open_issues_count);
+        out('dim', '  ' + j.html_url);
+      })
+      .catch(function () { out('err', 'gh: repo not found or API unreachable: real-CAK3D/' + repo); });
+  }
+  function cmdWeather(args) {
+    var place = args.join(' ').trim();
+    if (!place) {
+      out('dim', 'weather.gov — Lewiston, ME…');
+      jget('https://api.weather.gov/points/44.1004,-70.2148', { headers: { Accept: 'application/geo+json' } })
+        .then(function (j) { return jget(j.properties.forecast, { headers: { Accept: 'application/geo+json' } }); })
+        .then(function (j) { var p = j.properties.periods[0]; out('ok', 'Lewiston, ME: ' + p.temperature + '°' + p.temperatureUnit + ' ' + p.shortForecast); out('dim', '  wind ' + p.windSpeed + ' ' + p.windDirection + ' · ' + p.name); })
+        .catch(function () { out('err', 'weather: weather.gov unreachable'); });
+      return;
+    }
+    out('dim', 'geocoding "' + place + '" (open-meteo)…');
+    jget('https://geocoding-api.open-meteo.com/v1/search?count=1&name=' + encodeURIComponent(place))
+      .then(function (g) {
+        if (!g.results || !g.results.length) { out('warn', 'weather: no place called "' + place + '"'); return; }
+        var r = g.results[0];
+        return jget('https://api.open-meteo.com/v1/forecast?current=temperature_2m,wind_speed_10m,weather_code&temperature_unit=fahrenheit&latitude=' + r.latitude + '&longitude=' + r.longitude)
+          .then(function (f) { var c = f.current; out('ok', r.name + ', ' + (r.admin1 || r.country_code) + ': ' + Math.round(c.temperature_2m) + '°F'); out('dim', '  wind ' + c.wind_speed_10m + ' · code ' + c.weather_code + ' · ' + r.latitude.toFixed(2) + ',' + r.longitude.toFixed(2)); });
+      })
+      .catch(function () { out('err', 'weather: lookup failed'); });
+  }
+  function wrapText(s, w) {
+    var words = String(s).split(/\s+/), lines = [], cur = '';
+    words.forEach(function (word) { if ((cur + ' ' + word).trim().length > w) { lines.push(cur); cur = word; } else cur = (cur ? cur + ' ' : '') + word; });
+    if (cur) lines.push(cur); return lines.join('\n');
+  }
+
   var CMDS = {
     help: function () {
-      termPrint('ok', 'commands: help, ls, scan, flock, status <tool>, open <app>, neofetch, uptime, whoami, date, clear');
-      termPrint('dim', 'everything here is simulated — no real RF, no network actions.');
+      out('ok', 'CAK3D//fold — Kali NetHunter (simulated). Commands:');
+      out('', '  real lookups : wiki <term>  dns <host> [type]  ip  gh <repo>  weather [place]  time');
+      out('', '  system       : neofetch  sensors  lsusb  ip a  ifconfig  iwconfig  uname  uptime  date  whoami  id  pwd  ls  history  echo');
+      out('', '  live (sim)   : htop / top (q quits)   journalctl -f (Ctrl+C)   meshtastic --info|--nodes');
+      out('', '  wireless[sim]: airmon-ng  nmap [host]  wifite  bettercap   (all simulated, no real activity)');
+      out('', '  launchers    : open <app>  (or just type: marauder, flock, biscuit, meshtastic, scanimal…)');
+      out('', '  shell        : clear (Ctrl+L)  reboot   ↑/↓ history  Tab complete  Ctrl+C cancel');
+      out('dim', 'cve <id>: unavailable — no keyless, CORS-friendly CVE source wired up.');
     },
-    ls: function () { termPrint('', tools.map(function (t) { return (t.id + '              ').slice(0, 14) + t.tag; }).join('\n')); },
-    clear: function () { state.term = []; if (termOut) termOut.innerHTML = ''; },
-    whoami: function () { termPrint('', 'cak3d'); },
-    date: function () { termPrint('', new Date().toString()); },
-    uptime: function () { termPrint('', 'up ' + (1 + Math.floor(Math.random() * 40)) + ' days, load avg ' + [0, 1, 2].map(function () { return (Math.random() * 1.5).toFixed(2); }).join(' ')); },
+    clear: function () { clearScreen(); },
+    reboot: function () { state.termBooted = false; bootSeq(); },
+    whoami: function () { out('', 'cak3d'); },
+    id: function () { out('', 'uid=1000(cak3d) gid=1000(cak3d) groups=1000(cak3d),27(sudo),119(wireshark),120(kismet)'); },
+    pwd: function () { out('', '/home/cak3d'); },
+    hostname: function () { out('', 'fold'); },
+    uname: function (a) { out('', a[0] === '-a' ? 'Linux fold 6.8.0-kali3-arm64 #1 SMP PREEMPT_DYNAMIC aarch64 GNU/Linux' : 'Linux'); },
+    date: function () { out('', new Date().toString()); },
+    time: function () { var d = new Date(); out('', 'local: ' + d.toString()); out('', 'utc:   ' + d.toUTCString()); out('', 'epoch: ' + Math.floor(d.getTime() / 1000)); },
+    uptime: function () { out('', ' ' + new Date().toTimeString().slice(0, 8) + '  up ' + (1 + Math.floor(rnd(0, 40))) + ' days,  2 users,  load average: ' + [rnd(0, 2), rnd(0, 2), rnd(0, 2)].map(function (x) { return x.toFixed(2); }).join(', ')); },
+    echo: function (a, s) { out('', s); },
+    history: function () { state.termHist.forEach(function (c, i) { out('', pad(' ' + (i + 1), 5) + '  ' + c); }); },
+    ls: function () { out('', pad('Desktop', 14) + pad('captures', 14) + pad('loot', 14) + 'wordlists'); out('', pad('esp32', 14) + pad('biscuit', 14) + pad('meshtastic', 14) + 'README.md'); },
     neofetch: function () {
-      termPrint('ok', 'cak3d@fold\n----------\nOS:     CAK3D UI 8 (web)\nHost:   foldable in the 3D room\nShell:  silk-sh\nBoards: XIAO ESP32-S3 Sense, CYD 2432S028, ESP32-S3 AMOLED\nApps:   ' + allApps.length);
+      var info = ['', 'cak3d@fold', '----------', 'OS: Kali GNU/Linux Rolling 2026.3', 'Host: CAK3D//fold (Galaxy Z Fold 8)', 'Kernel: 6.8.0-kali3-arm64', 'Shell: zsh 5.9', 'DE: CAK3D UI 8', 'Boards: XIAO ESP32-S3, CYD 2432S028, ESP32-C3 (Biscuit)', 'Apps: ' + allApps.length, 'Terminal: silk-console [sim]'];
+      KALI_DRAGON.forEach(function (d, i) { out(i < 2 ? 'dragon' : 'dragon', pad(d, 26) + (info[i] || '')); });
     },
-    scan: function () {
-      termPrint('warn', 'passive sweep (simulated)…');
-      var seen = ['ssid "CAK3D-silk"   ch 6   -41dBm', 'ssid "Spac3-Gh0st"  ch 1   -58dBm', 'ble  "GTA-Watch"    -66dBm', 'ble  "CYD-Buddy"    -71dBm'];
-      stagger(seen, function (x) { termPrint('', '  ' + x); }, function () { termPrint('ok', 'done — ' + seen.length + ' devices (owned lab only)'); });
+    sensors: function () {
+      out('dim', '[sim] sensors');
+      out('', 'coretemp-isa-0000');
+      out('', '  Package id 0:  +' + rnd(45, 62).toFixed(1) + '°C  (high = +84.0°C, crit = +100.0°C)');
+      out('', '  Core 0:        +' + rnd(42, 58).toFixed(1) + '°C');
+      out('', '  Core 1:        +' + rnd(42, 58).toFixed(1) + '°C');
+      out('', 'esp32-usb-serial');
+      out('', '  XIAO-S3 die:   +' + rnd(38, 47).toFixed(1) + '°C');
+      out('', 'fan1:            ' + Math.floor(rnd(1900, 2600)) + ' RPM');
     },
-    flock: function () {
-      termPrint('warn', 'WhatTheFlock passive detector (simulated)');
-      termPrint('', '  listening 2.4GHz, hop 11/6/1, OUI set=34');
-      stagger(['  ..... no matches', '  ..... no matches', '  demo hit: OUI b4:1e:52 tier1'], function (x) { termPrint('', x); },
-        function () { termPrint('ok', 'passive only, no transmit. Open WhatTheFlock for the radar.'); });
+    lsusb: function () {
+      outLines('', [
+        'Bus 001 Device 002: ID 10c4:ea60 Silicon Labs CP210x UART Bridge',
+        'Bus 001 Device 003: ID 1a86:7523 QinHeng CH340 Serial',
+        'Bus 001 Device 004: ID 303a:1001 Espressif ESP32-S3 (USB JTAG/serial)',
+        'Bus 001 Device 005: ID 2886:0045 Seeed Studio XIAO ESP32-S3 Sense',
+        'Bus 001 Device 006: ID 1a86:55d4 QinHeng CH9102 Serial (CYD 2432S028)',
+        'Bus 001 Device 007: ID 303a:4001 Espressif ESP32-C3 (Biscuit / Xteink X4)',
+        'Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub'
+      ].join('\n'));
     },
-    status: function (arg) {
-      var t = tools.filter(function (x) { return x.id === arg || x.name.toLowerCase() === (arg || '').toLowerCase(); })[0];
-      if (!t) { termPrint('', 'usage: status <tool>   e.g. status whattheflock'); return; }
-      termPrint('ok', t.name + ' — ' + t.tag);
-      t.status.forEach(function (r) { termPrint('', '  ' + (r.k + '          ').slice(0, 10) + r.v); });
+    ip: function (a) {
+      if (!a.length) { cmdIp(); return; }
+      if (a[0] === 'a' || a[0] === 'addr' || a[0] === 'address') {
+        outLines('', [
+          '1: lo: <LOOPBACK,UP> mtu 65536',
+          '    inet 127.0.0.1/8 scope host lo',
+          '2: wlan0: <BROADCAST,MULTICAST,UP> mtu 1500',
+          '    inet 192.168.1.37/24 brd 192.168.1.255 scope global wlan0',
+          '3: wlan1mon: <BROADCAST,UP> mtu 1500  [sim monitor iface]',
+          '4: usb0: <BROADCAST,MULTICAST,UP> mtu 1500',
+          '    inet 192.168.44.1/24 scope global usb0'
+        ].join('\n'));
+        return;
+      }
+      out('', 'usage: ip | ip a');
     },
-    open: function (arg) {
-      var a = findApp(arg);
-      if (!a) { termPrint('err', 'open: no such app: ' + arg); return; }
-      termPrint('ok', 'launching ' + a.name + '…');
-      setTimeout(function () { openApp(a, true); }, 350);
-    }
+    ifconfig: function () { CMDS.ip(['a']); },
+    iwconfig: function () {
+      outLines('', [
+        'wlan0     IEEE 802.11  ESSID:"CAK3D-silk"',
+        '          Mode:Managed  Frequency:2.437 GHz  Access Point: owned-lab',
+        '          Bit Rate=144 Mb/s   Tx-Power=20 dBm   Link Quality=61/70',
+        'wlan1mon  IEEE 802.11  Mode:Monitor  Frequency:2.412 GHz  [sim]',
+        'lo        no wireless extensions.'
+      ].join('\n'));
+    },
+    'airmon-ng': function () {
+      out('warn', '[sim] airmon-ng — no real monitor mode enabled');
+      out('', 'PHY   Interface   Driver        Chipset');
+      out('', 'phy0  wlan0       mt76x2u       MediaTek MT7612U');
+      out('', 'phy1  wlan1       rtl8812au     Realtek RTL8812AU');
+      out('dim', '[sim] nothing was put into monitor mode.');
+    },
+    nmap: function (a) {
+      var host = a.filter(function (x) { return x[0] !== '-'; })[0] || '192.168.1.1';
+      out('warn', '[sim] Starting Nmap 7.95 ( simulated ) against ' + host);
+      stagger([
+        'Nmap scan report for ' + host,
+        'Host is up (0.00' + Math.floor(rnd(10, 90)) + 's latency).',
+        'PORT     STATE  SERVICE',
+        '22/tcp   open   ssh',
+        '80/tcp   open   http',
+        '443/tcp  open   https',
+        '1883/tcp open   mqtt'
+      ], function (x) { out('', x); }, function () { out('dim', '[sim] no packets were actually sent.'); });
+    },
+    wifite: function () {
+      out('warn', '[sim] wifite — targets listed only, no attacks performed');
+      out('', '  NUM  ESSID           CH  ENCR  POWER  CLIENTS');
+      out('', '   1   CAK3D-silk       6  WPA2   61db     3');
+      out('', '   2   Spac3-Gh0st      1  WPA3   58db     1');
+      out('', '   3   owned-lab-ap    11  WPA2   47db     0');
+      out('dim', '[sim] no deauth/capture was run. Owned-lab display only.');
+    },
+    bettercap: function () {
+      out('warn', '[sim] bettercap v2.x (simulated session)');
+      out('', '  [19:04:11] [sys.log] module net.recon idle');
+      out('', '  [19:04:11] [sys.log] module ble.recon idle');
+      out('', '  192.168.1.1   gateway        owned-lab');
+      out('dim', '[sim] no packets injected, no modules armed.');
+    },
+    meshtastic: function (a) {
+      if (a[0] === '--info' || a[0] === 'info') {
+        out('ok', 'My info:');
+        outLines('', ['  node     : !8f501778', '  hardware : SEEED_XIAO_S3', '  firmware : 2.7.26.54e0d8d', '  region   : US', '  channel  : LongFast (PRIMARY)', '  battery  : ' + Math.floor(rnd(60, 100)) + '%']);
+        return;
+      }
+      if (a[0] === '--nodes' || a[0] === 'nodes') {
+        out('ok', 'Mesh nodes (simulated):');
+        out('', '  ' + pad('ID', 12) + pad('NAME', 13) + pad('HW', 10) + pad('HOPS', 6) + 'SNR');
+        [['!8f501778', 'cak3d-xiao', 'XIAO S3', '0', '—'], ['!a21c4e90', 'porch-beam', 'T-Beam', '1', '-41dB'], ['!7de0121a', 'shed-lora', 'T-LoRa', '2', '-78dB'], ['!3b9044c5', 'truck-diy', 'DIY V1', '1', '-63dB'], ['!c0ffee42', 'relay-hill', 'Heltec', '2', '-85dB']].forEach(function (n) { out('', '  ' + pad(n[0], 12) + pad(n[1], 13) + pad(n[2], 10) + pad(n[3], 6) + n[4]); });
+        out('dim', 'off-grid LoRa · LongFast · US. Open the Meshtastic app for the web client.');
+        return;
+      }
+      out('', 'usage: meshtastic --info | --nodes   (or `open meshtastic`)');
+    },
+    htop: function () { startHtop(); },
+    top: function () { startHtop(); },
+    journalctl: function (a) { if (a.indexOf('-f') >= 0 || a.indexOf('--follow') >= 0) startLog(); else { out('dim', '-- journalctl (last lines) --'); for (var i = 0; i < 8; i++) { var d = new Date(Date.now() - (8 - i) * 6000); out('dim', d.toTimeString().slice(0, 8) + ' fold systemd: unit silk-console.service ok'); } out('dim', 'use `journalctl -f` to follow live.'); } },
+    wiki: cmdWiki, dns: cmdDns, gh: cmdGh, weather: cmdWeather,
+    status: function (a) {
+      var t = tools.filter(function (x) { return x.id === a[0] || x.name.toLowerCase() === (a[0] || '').toLowerCase() || TERM_ALIAS[(a[0] || '').toLowerCase()] === x.name; })[0];
+      if (!t) { out('', 'usage: status <tool>  e.g. status whattheflock'); return; }
+      out('ok', t.name + ' — ' + t.tag);
+      t.status.forEach(function (r) { out('', '  ' + pad(r.k, 10) + r.v); });
+    },
+    open: function (a) {
+      var app = termLaunch(a[0]); if (!app) { out('err', 'open: no such app: ' + (a[0] || '')); return; }
+      out('ok', 'launching ' + app.name + '…'); setTimeout(function () { openApp(app, true); }, 300);
+    },
+    cve: function () { out('err', 'cve: unavailable — no keyless, CORS-friendly CVE source is wired up.'); },
+    sudo: function (a, s) { out('', '[sudo] password for cak3d: ••••'); out('dim', 'cak3d is in the sudoers file. (' + (s || 'nothing to do') + ')'); }
   };
-  function runLine(line) {
-    state.term.push(['cmd', line]);
-    if (termOut) { termOut.appendChild(el('div', 'ln cmd', line)); termOut.scrollTop = termOut.scrollHeight; }
-    var parts = line.trim().split(/\s+/), cmd = parts.shift(), arg = parts.join(' ');
-    if (!cmd) return;
-    if (CMDS[cmd]) CMDS[cmd](arg); else termPrint('err', cmd + ': command not found (try `help`)');
-  }
+  var CMD_NAMES = Object.keys(CMDS);
+  var APP_TOKENS = Object.keys(TERM_ALIAS).concat(tools.map(function (t) { return t.id; }));
 
   /* ---------- swipe helper (touch + mouse) ---------- */
   function addSwipe(node, cb, edge) {

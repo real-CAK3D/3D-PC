@@ -148,6 +148,44 @@
         { k: 'build', v: 'v1.17.0' }, { k: 'board', v: 'multi-S3' },
         { k: 'link', v: 'display only' }, { k: 'device', v: 'not attached' }
       ]
+    },
+    {
+      id: 'biscuit', name: 'Biscuit', tag: 'e-paper cyberdeck', color: '#e0a33d',
+      glyph: 'cookie',
+      hw: 'Xteink X4 — ESP32-C3 (RISC-V 160MHz), 16MB flash, 4.26" 800×480 e-ink, 7 buttons, Wi-Fi 2.4GHz, BLE 5.0, microSD',
+      repo: 'https://github.com/yattsu/biscuit',
+      launch: 'https://github.com/yattsu/biscuit', launchLabel: 'Open firmware repo',
+      desc: 'Biscuit is open-source firmware by yattsu (MIT), forked from CrossPoint Reader, that turns the ~$70 Xteink X4 e-ink reader into a tile-dashboard “smart device”: full e-reader plus passive Wi-Fi/BLE scanning, ESP-NOW mesh chat, crypto/network utilities and games — all with the battery life of e-ink. CAK3D runs it on an ESP32-C3 X4. This tile is a display-only shortcut to the upstream project.',
+      features: [
+        'Tile dashboard: Recon, Comms, Tools, Games, Reader, Settings',
+        'Passive Wi-Fi / BLE scanning and wardriving (listen-only)',
+        'ESP-NOW Mesh Chat — no Wi-Fi needed, ~200 m, multi-hop relay',
+        'E-reader (ebooks, OPDS, reading stats) on a sunlight-readable 4.26" panel',
+        '7 physical buttons, microSD storage, USB-C serial + power'
+      ],
+      status: [
+        { k: 'soc', v: 'ESP32-C3' }, { k: 'flash', v: '16 MB' },
+        { k: 'display', v: 'e-ink 1-bit' }, { k: 'link', v: 'display only' }
+      ]
+    },
+    {
+      id: 'meshtastic', name: 'Meshtastic', tag: 'LoRa mesh', color: '#2f9e5e',
+      glyph: 'mesh', mesh: true,
+      hw: 'LoRa mesh nodes — CAK3D runs it on a Seeed XIAO ESP32-S3 (fw 2.7.26, region US) and a DIY V1 build; typical nodes: LILYGO T-Beam, T-LoRa V2.1, Heltec',
+      repo: 'https://github.com/meshtastic/firmware',
+      launch: 'https://client.meshtastic.org', launchLabel: 'Open web client',
+      desc: 'Meshtastic is open-source, off-grid LoRa mesh messaging (meshtastic.org). Low-power radios form a self-healing, multi-hop mesh for encrypted text, position and telemetry with no phone network or internet. Phones connect to a node over Bluetooth, USB or Wi-Fi. CAK3D flashed it on a Seeed XIAO ESP32-S3 (target seeed-xiao-s3, region US).',
+      features: [
+        'Encrypted text + position over LoRa, fully off-grid',
+        'Self-healing multi-hop mesh, long range at very low power',
+        'Phone app connects over BLE / USB / Wi-Fi; optional MQTT gateway',
+        'Runs on many boards (T-Beam, T-LoRa, Heltec, XIAO S3, DIY V1)',
+        'Web client flashes and manages nodes from the browser'
+      ],
+      status: [
+        { k: 'region', v: 'US' }, { k: 'fw', v: '2.7.26' },
+        { k: 'channel', v: 'LongFast' }, { k: 'nodes', v: '5 online' }
+      ]
     }
   ];
 
