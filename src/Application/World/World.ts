@@ -22,6 +22,7 @@ import GamingChair from './Stoner/GamingChair';
 import Toolbox from './Stoner/Toolbox';
 import Laptop from './Stoner/Laptop';
 import Phone from './Stoner/Phone';
+import MakerCorner from './Stoner/MakerCorner';
 import ContextMenu from './Stoner/ContextMenu';
 import { ROOM } from './Stoner/Room';
 import * as THREE from 'three';
@@ -52,6 +53,7 @@ export default class World {
     toolbox: Toolbox;
     laptop: Laptop;
     phone: Phone;
+    makerCorner: MakerCorner;
     contextMenu: ContextMenu;
 
     constructor() {
@@ -84,6 +86,7 @@ export default class World {
         this.phone = new Phone(this.lounge.phoneSpot, this.entertainment);
         this.roomExtras = new RoomExtras();
         this.toolbox = new Toolbox();
+        this.makerCorner = new MakerCorner();
         this.outdoors = new Outdoors();
         this.deskStash = new DeskStash();
         this.deskInputs = new DeskInputs();
@@ -111,6 +114,7 @@ export default class World {
         if (this.toolbox) this.toolbox.update();
         if (this.laptop) this.laptop.update();
         if (this.phone) this.phone.update();
+        if (this.makerCorner) this.makerCorner.update();
         if (this.smoke) this.smoke.update();
         if (this.monitorScreen) this.monitorScreen.update();
         if (this.environment) this.environment.update();
